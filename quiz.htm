@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>タイトルコール当てクイズ</title>
+<style type="text/css">
+</style>
+</head>
+<body>
+
+<script>
+"use strict";
+
+let arIdoldatas = [];
+let divLog = null;
+
+// ++非同期関数++ 問い合わせてレスポンスのJSONをオブジェクトに変換して返す。次の関数でのみ使う
+async function asyncFetchAndStrip( url ) {
+	const resReq = await fetch( url.href );
+	return (await resReq.json())["result"];
+}
+
+// ++非同期関数++ リソースの読み出し
+async function asyncFetchResources() {
+	//URLインターフェースを利用して引数を安全にURL化(さもなくば例外を投げる)
+	const firstRequestURL = new URL("https://starlight.kirara.ca/api/v1/list/char_t?keys=chara_id");
+	const arrslt = await asyncFetchAndStrip(firstRequestURL);
+	const arCharIds = arrslt.map( r=>r["chara_id"] );
+	//大量のfetchを発して相手サーバに負荷をかけるのも悪いので、わざと一つずつfetchしている。
+	let cnt = 0;
+	for( const charId of arCharIds ){
+		let secondRequestURL = new URL(`/api/v1/char_t/${charId}`, firstRequestURL);
+		let objrslt = (await asyncFetchAndStrip(secondRequestURL))[0];
+		if( objrslt["voice"] ){ //voiceが空文字列ではない
+			//URLを相対から絶対に変換しておく
+			const id2vo = id => "/va2/"+(id ^ 0x1042fc).toString(16)+"10442d16ab.mp3";
+			const urlic = new URL( objrslt["icon_image_ref"], secondRequestURL ).href
+			const urlvo = new URL( id2vo(charId), urlic ).href
+			//objIdolの作成
+			let objIdol = {
+				cid : charId,
+				name : objrslt["name"],
+				voice : objrslt["voice"],
+				urlicon : urlic,
+				urlvoice : urlvo
+			};
+			//objIdolをベースが持つ配列に追加
+			arIdoldatas.push(objIdol);
+
+			let p = document.createElement("p");
+			p.innerText = `${++cnt}/${arCharIds.length}[${objIdol.cid}] ${objIdol.name}/cv.${objIdol.voice} 画 ${objIdol.urlicon} 声 ${objIdol.urlvoice}`;
+			divLog.appendChild(p);
+		}
+	}
+	let p = document.createElement("p");
+	p.innerText = `読み取り完了。全 ${arCharIds.length} 人中ボイス設定ありは ${cnt} 人でした。`;
+	divLog.appendChild(p);
+}
+
+//ページ読み込み時処理
+window.addEventListener("load",()=>{
+	divLog = document.createElement("div");
+	document.body.appendChild(divLog);
+	asyncFetchResources();
+});
+
+</script>
+</body>
+</html>
