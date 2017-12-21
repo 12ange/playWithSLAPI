@@ -11,8 +11,29 @@
 <script>
 "use strict";
 
+// AudioContext初期化 by Mozilla
+const gAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// Webkit/blink系ブラウザは接頭辞が必要、Safariは「window.」をつけないと動かない
+const gURL = window.URL || window.webkitURL; //URLも同様らしいのでそうしておく
+
 let arIdoldatas = [];
 let divLog = null;
+
+class tIdol {
+	constructor( _cid, _name, _voice ){
+		this.cid = _cid;      //ID
+		this.name = _name;    //名前
+		this.voice = _voice;  //担当声優
+		this.bufvoice = null; //音声 as ArrayBuffer
+		this.ourlicon = null; //画像 as objectURL
+	}
+	setVoiceByResponse( _res ){
+		_res.arrayBuffer().then( e=>{this.bufvoice = e;} );
+	}
+	setIconByResponse( _res ){
+		_res.blob().then( e=>{this.ourlicon = gURL.createObjectURL(e);} );
+	}
+}
 
 // ++非同期関数++ 問い合わせてレスポンスのJSONをオブジェクトに変換して返す。次の関数でのみ使う
 async function asyncFetchAndStrip( url ) {
@@ -23,38 +44,48 @@ async function asyncFetchAndStrip( url ) {
 // ++非同期関数++ リソースの読み出し
 async function asyncFetchResources() {
 	//URLインターフェースを利用して引数を安全にURL化(さもなくば例外を投げる)
-	const firstRequestURL = new URL("https://starlight.kirara.ca/api/v1/list/char_t?keys=chara_id");
+	const firstRequestURL = new gURL("https://starlight.kirara.ca/api/v1/list/char_t?keys=chara_id");
 	const arrslt = await asyncFetchAndStrip(firstRequestURL);
 	const arCharIds = arrslt.map( r=>r["chara_id"] );
 	//大量のfetchを発して相手サーバに負荷をかけるのも悪いので、わざと一つずつfetchしている。
 	let cnt = 0;
-	for( const charId of arCharIds ){
-		let secondRequestURL = new URL(`/api/v1/char_t/${charId}`, firstRequestURL);
+	for( let idx = 0 ; idx < arCharIds.length ; idx++  ){
+		let charId = arCharIds[idx];
+		let secondRequestURL = new gURL(`/api/v1/char_t/${charId}`, firstRequestURL);
 		let objrslt = (await asyncFetchAndStrip(secondRequestURL))[0];
-		if( objrslt["voice"] ){ //voiceが空文字列ではない
+		//アイドル個人の情報のvoiceが空文字列ではない＝タイトルコールがある「かもしれない」。
+		//例えば2017年の「恋が咲く季節」イベントの時(だと思われる)、この曲を歌うアイドルのCV 5名分 が反映されたものの、
+		//タイトルコール実装はカード報酬となった2名にとどまっている。
+		//タイトルコールが存在するかは個人情報JSONに現れないので直接音声ファイルのURLを叩いてみる。
+
+		if( objrslt["voice"] ){
+			//先に音声の所在を確認し、成功したら画像を取り寄せる、の順。
 			//URLを相対から絶対に変換しておく
 			const id2vo = id => "/va2/"+(id ^ 0x1042fc).toString(16)+"10442d16ab.mp3";
-			const urlic = new URL( objrslt["icon_image_ref"], secondRequestURL ).href
-			const urlvo = new URL( id2vo(charId), urlic ).href
-			//objIdolの作成
-			let objIdol = {
-				cid : charId,
-				name : objrslt["name"],
-				voice : objrslt["voice"],
-				urlicon : urlic,
-				urlvoice : urlvo
-			};
-			//objIdolをベースが持つ配列に追加
-			arIdoldatas.push(objIdol);
+			const urlic = new gURL( objrslt["icon_image_ref"], secondRequestURL ).href;
+			const urlvo = new gURL( id2vo(charId), urlic ).href; //音声は画像と同じサーバにあるらしい。本家ソースちら見した限り。
+			//即fetchしてステータスを見る
+			let resvo = await fetch(urlvo).catch( e=>{console.log("動作には支障ありません。");} );
+			if( resvo && resvo.status === 200 ){
+				//音声があった！
+				const resic = await fetch(urlic);
+				if( resic.status === 200 ){ //画像もOK
+					//新しいobjを作って反映
+					let objIdol = new tIdol(charId, objrslt["name"], objrslt["voice"]);
+					objIdol.setVoiceByResponse(resvo);
+					objIdol.setIconByResponse(resic);
+					arIdoldatas.push(objIdol); //グローバル配列に追加
 
-			let p = document.createElement("p");
-			p.innerText = `${++cnt}/${arCharIds.length}[${objIdol.cid}] ${objIdol.name}/cv.${objIdol.voice} 画 ${objIdol.urlicon} 声 ${objIdol.urlvoice}`;
-			divLog.appendChild(p);
+					let p = document.createElement("p");
+					p.textContent = `#${++cnt}-${idx}/${arCharIds.length}[${objIdol.cid}] ${objIdol.name}/cv.${objIdol.voice}`;
+					divLog.insertBefore(p, divLog.firstChild);
+				}
+			}
 		}
 	}
 	let p = document.createElement("p");
-	p.innerText = `読み取り完了。全 ${arCharIds.length} 人中ボイス設定ありは ${cnt} 人でした。`;
-	divLog.appendChild(p);
+	p.textContent = `読み取り完了。全 ${arCharIds.length} 人中ボイス設定ありは ${cnt} 人でした。`;
+	divLog.insertBefore(p, divLog.firstChild);
 }
 
 //ページ読み込み時処理
