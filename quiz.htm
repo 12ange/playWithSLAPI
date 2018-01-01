@@ -10,6 +10,8 @@
 
 <script>
 "use strict";
+const NEW_TAG = (tag) => document.createElement(tag);
+const GET_ID = (id) => document.getElementById(id);
 
 // AudioContext初期化 by Mozilla
 const gAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -24,14 +26,44 @@ class tIdol {
 		this.cid = _cid;      //ID
 		this.name = _name;    //名前
 		this.voice = _voice;  //担当声優
-		this.bufvoice = null; //音声 as ArrayBuffer
+		this.bufvoice = null; //音声 as デコード済みAudioData
 		this.ourlicon = null; //画像 as objectURL
+		this.imgelmnt = NEW_TAG("img");
+		this.btnelmnt = NEW_TAG("button");
+		this.btnelmnt.appendChild( this.imgelmnt );
+		this.btnelmnt.onclick = this.onIconButton;
+		this.btnelmnt.owner = this; //buttonからこのクラス自体にアクセスできるように
 	}
 	setVoiceByResponse( _res ){
-		_res.arrayBuffer().then( e=>{this.bufvoice = e;} );
+		_res.arrayBuffer().then( e=>{
+			return gAudioCtx.decodeAudioData(e);
+		} ).then( e=>{
+			this.bufvoice = e;
+			this.btnelmnt.disabled = false;
+		} ).catch( e=>{
+			//ArrayBuffer変換失敗も、デコード失敗も。
+			this.bufvoice = null;
+			this.btnelmnt.disabled = true;
+		} );
 	}
 	setIconByResponse( _res ){
-		_res.blob().then( e=>{this.ourlicon = gURL.createObjectURL(e);} );
+		_res.blob().then( e=>{
+			this.imgelmnt.src = this.ourlicon = gURL.createObjectURL(e);
+		}, e=>{this.ourlicon = null;} );
+	}
+	playVoice( _dest, _timing ){
+		if( ! this.bufvoice ) return false;
+
+		let bfsrc = gAudioCtx.createBufferSource();
+		bfsrc.buffer = this.bufvoice;
+		bfsrc.connect( _dest );
+		bfsrc.start( _timing );
+
+		return true;
+	}
+	//ボタンを押すとタイトルコール
+	onIconButton(){
+		this.owner.playVoice( gAudioCtx.destination, gAudioCtx.currentTime );
 	}
 }
 
@@ -65,7 +97,7 @@ async function asyncFetchResources() {
 			const urlic = new gURL( objrslt["icon_image_ref"], secondRequestURL ).href;
 			const urlvo = new gURL( id2vo(charId), urlic ).href; //音声は画像と同じサーバにあるらしい。本家ソースちら見した限り。
 			//即fetchしてステータスを見る
-			let resvo = await fetch(urlvo).catch( e=>{console.log("動作には支障ありません。");} );
+			let resvo = await fetch(urlvo).catch( e=>{console.log("動作には支障ありません。");} ); //fetchのerrorは(try-catchと同様)、prms.catchでまるっと処理してしまえる
 			if( resvo && resvo.status === 200 ){
 				//音声があった！
 				const resic = await fetch(urlic);
@@ -78,19 +110,20 @@ async function asyncFetchResources() {
 
 					let p = document.createElement("p");
 					p.textContent = `#${++cnt}-${idx}/${arCharIds.length}[${objIdol.cid}] ${objIdol.name}/cv.${objIdol.voice}`;
+					p.appendChild( objIdol.btnelmnt );
 					divLog.insertBefore(p, divLog.firstChild);
 				}
 			}
 		}
 	}
-	let p = document.createElement("p");
+	let p = NEW_TAG("p");
 	p.textContent = `読み取り完了。全 ${arCharIds.length} 人中ボイス設定ありは ${cnt} 人でした。`;
 	divLog.insertBefore(p, divLog.firstChild);
 }
 
 //ページ読み込み時処理
 window.addEventListener("load",()=>{
-	divLog = document.createElement("div");
+	divLog = NEW_TAG("div");
 	document.body.appendChild(divLog);
 	asyncFetchResources();
 });
