@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <title>タイトルコール当てクイズ</title>
 <style type="text/css">
+/* Fukol https://github.com/Heydon/fukol-grids */
+.fukol-grid{display:flex;flex-wrap:wrap;margin:-.5em;}
+.fukol-grid>*{flex:1 0 5em;margin:.5em;}
 </style>
 </head>
 <body>
@@ -29,6 +32,7 @@ class tIdol {
 		this.bufvoice = null; //音声 as デコード済みAudioData
 		this.ourlicon = null; //画像 as objectURL
 		this.imgelmnt = NEW_TAG("img");
+		this.imgelmnt.alt = _name + ( _voice ? `(cv. ${_voice})` : "" );
 		this.btnelmnt = NEW_TAG("button");
 		this.btnelmnt.appendChild( this.imgelmnt );
 		this.btnelmnt.onclick = this.onIconButton;
@@ -80,6 +84,11 @@ async function asyncFetchResources() {
 	const arrslt = await asyncFetchAndStrip(firstRequestURL);
 	const arCharIds = arrslt.map( r=>r["chara_id"] );
 	//大量のfetchを発して相手サーバに負荷をかけるのも悪いので、わざと一つずつfetchしている。
+
+	const elmfukol = NEW_TAG("div");
+	elmfukol.className = "fukol-grid";
+	divLog.appendChild(elmfukol);
+
 	let cnt = 0;
 	for( let idx = 0 ; idx < arCharIds.length ; idx++  ){
 		let charId = arCharIds[idx];
@@ -108,10 +117,10 @@ async function asyncFetchResources() {
 					objIdol.setIconByResponse(resic);
 					arIdoldatas.push(objIdol); //グローバル配列に追加
 
-					let p = document.createElement("p");
-					p.textContent = `#${++cnt}-${idx}/${arCharIds.length}[${objIdol.cid}] ${objIdol.name}/cv.${objIdol.voice}`;
+					let p = document.createElement("div");
+					p.textContent = `#${++cnt}-${idx}/${arCharIds.length}[${objIdol.cid}]`;
 					p.appendChild( objIdol.btnelmnt );
-					divLog.insertBefore(p, divLog.firstChild);
+					elmfukol.insertBefore(p, elmfukol.firstChild);
 				}
 			}
 		}
