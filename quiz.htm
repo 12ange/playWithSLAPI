@@ -4,14 +4,20 @@
 <meta charset="utf-8">
 <title>タイトルコール当てクイズ</title>
 <style type="text/css">
+
 /* Fukol https://github.com/Heydon/fukol-grids */
 .fukol-grid{display:flex;flex-wrap:wrap;margin:-.5em;}
 .fukol-grid>*{flex:1 0 5em;margin:.5em;}
+/* 属性色設定 */
+.imascg-cute{color:#e26; background-color:#fdd}
+.imascg-cool{color:#06f; background-color:#eef}
+.imascg-passion{color:#c80; background-color:#feb}
+
 </style>
 </head>
 <body>
-
 <script>
+
 "use strict";
 const NEW_TAG = (tag) => document.createElement(tag);
 const GET_ID = (id) => document.getElementById(id);
@@ -37,6 +43,9 @@ class tIdol {
 		this.btnelmnt.appendChild( this.imgelmnt );
 		this.btnelmnt.onclick = this.onIconButton;
 		this.btnelmnt.owner = this; //buttonからこのクラス自体にアクセスできるように
+	}
+	get attribute(){
+		return this.cid>=234 ? "passion" : (this.cid>=167 ? "cool" : "cute");
 	}
 	setVoiceByResponse( _res ){
 		_res.arrayBuffer().then( e=>{
@@ -111,15 +120,19 @@ async function asyncFetchResources() {
 				//音声があった！
 				const resic = await fetch(urlic);
 				if( resic.status === 200 ){ //画像もOK
-					//新しいobjを作って反映
+					//新しいobjを作ってグローバル配列に追加
 					let objIdol = new tIdol(charId, objrslt["name"], objrslt["voice"]);
 					objIdol.setVoiceByResponse(resvo);
 					objIdol.setIconByResponse(resic);
-					arIdoldatas.push(objIdol); //グローバル配列に追加
-
-					let p = document.createElement("div");
-					p.textContent = `#${++cnt}-${idx}/${arCharIds.length}[${objIdol.cid}]`;
+					arIdoldatas.push(objIdol);
+					//グリッドシステムに表示ブロックを入れ込む。
+					let p = NEW_TAG("div");
+					p.className = "imascg-"+objIdol.attribute;
 					p.appendChild( objIdol.btnelmnt );
+					p.appendChild( NEW_TAG("br") );
+					let q = NEW_TAG("span");
+					q.textContent = `#${++cnt}-${idx}/${arCharIds.length}[${objIdol.cid}]`;
+					p.appendChild( q );
 					elmfukol.insertBefore(p, elmfukol.firstChild);
 				}
 			}
