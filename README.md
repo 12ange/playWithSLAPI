@@ -55,7 +55,7 @@ webutil.audio(id, usage, index)
 /webutil.py → def audio(object_id, use, index):
 ```
 
-```
+```ruby
 a = (object_id << 40) | ((use & 0xFF) << 24) | ((index & 0xFF) << 16) | 0x11AB
 # make everything 8 bytes long for reasons
 a &= 0xFFFFFFFFFFFFFFFF
@@ -79,8 +79,15 @@ then...
     0x0d     -> index
 ```
 
-```
+```JavaScript
 //タイトルコールだけ見たいので、変化するのはobject_idのみ。
 const id2vo = idolid => (idolid ^ 0x1042fc).toString(16)+"10442d16ab.mp3";
-//ちなみに「名前」は "10442216ab.mp3" (use=4,index=2) になる
+```
+
+```
+//追加情報。
+// + "10442216ab.mp3" (use=4,index=1)  -> 名前(体言止め)
+// + "10442216ab.mp3" (use=4,index=2)  -> 名前＋です
+// + "10442c16ab.mp3" (use=4,index=12) -> タイトルコール/ソロ用
+// + "10442d16ab.mp3" (use=4,index=13) -> タイトルコール/ユニット用
 ```
