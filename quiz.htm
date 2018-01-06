@@ -31,15 +31,15 @@ let arIdoldatas = [];
 let divLog = null;
 
 class tIdol {
-	constructor( _cid, _name, _type, _voice ){
-		this.cid = _cid;      //ID
-		this.name = _name;    //名前
-		this.type = _type;    //属性
-		this.voice = _voice;  //担当声優
+	constructor( _argobj ){
+		this.cid = _argobj["chara_id"];      //ID
+		this.name = _argobj["name"];    //名前
+		this.type = _argobj["type"];    //属性
+		this.voice = _argobj["voice"];  //担当声優
 		this.bufvoice = null; //音声 as デコード済みAudioData
 		this.ourlicon = null; //画像 as objectURL
 		this.imgelmnt = NEW_TAG("img");
-		this.imgelmnt.alt = _name + ( _voice ? `(cv. ${_voice})` : "" );
+		this.imgelmnt.alt = this.name + ( this.voice ? `(cv. ${this.voice})` : "" );
 		this.btnelmnt = NEW_TAG("button");
 		this.btnelmnt.appendChild( this.imgelmnt );
 		this.btnelmnt.onclick = this.onIconButton;
@@ -121,7 +121,7 @@ async function asyncFetchResources() {
 			const resic = await fetch(urlic);
 			if( resic.status === 200 ){ //画像もOK
 				//新しいobjを作ってグローバル配列に追加
-				let objIdol = new tIdol(objrslt["chara_id"], objrslt["name"], objrslt["type"] , objrslt["voice"]);
+				let objIdol = new tIdol(objrslt);
 				objIdol.setVoiceByResponse(resvo);
 				objIdol.setIconByResponse(resic);
 				arIdoldatas.push(objIdol);
