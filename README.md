@@ -86,7 +86,7 @@ const id2vo = idolid => (idolid ^ 0x1042fc).toString(16)+"10442d16ab.mp3";
 
 ```
 //追加情報。
-// + "10442216ab.mp3" (use=4,index=1)  -> 名前(体言止め)
+// + "10442116ab.mp3" (use=4,index=1)  -> 名前(体言止め)
 // + "10442216ab.mp3" (use=4,index=2)  -> 名前＋です
 // + "10442c16ab.mp3" (use=4,index=12) -> タイトルコール/ソロ用
 // + "10442d16ab.mp3" (use=4,index=13) -> タイトルコール/ユニット用
