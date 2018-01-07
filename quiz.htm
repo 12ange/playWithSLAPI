@@ -59,33 +59,28 @@ class tIdol {
 		this.HIEicon = NEW_TAG("img");
 		this.HIEicon.owner = this; //このクラス自体にアクセスできるように
 		this.HIEicon.alt = this.name + ( this.voice ? `(cv. ${this.voice})` : "" );
-		this.HIEicon.onload = this.onOkayCallback;
-		this.HIEicon.onerror = this.onErrorCallback;
+		this.HIEicon.onload = ()=>{ this.postResult( this.HIEicon, true ); };
+		this.HIEicon.onerror = ()=>{ this.postResult( this.HIEicon, false ); };
 		this.HIEicon.src = urlIcon;
 
-		// H TML A udio E lement の略
+/*		// H TML A udio E lement の略
 		this.HAEtitle1 = NEW_TAG("audio");
 		this.HAEtitle1.owner = this;
 		this.HAEtitle1.oncanplaythrough = this.onOkayCallback; //最後まで再生できる状態になった
 		this.HAEtitle1.onerror = this.onErrorCallback;
-		this.HAEtitle1.src = urlTitle1;
+		this.HAEtitle1.src = urlTitle1; */
 	}
 
-	//リソース系共通・読み込み成功時コールバック：thisはイベント対象となったHTMLElement
-	onOkayCallback(){ this.owner.postResult( this, true ); }
-	//リソース系共通・読み込み失敗時コールバック：thisはイベント対象となったHTMLElement
-	onErrorCallback(){ this.owner.postResult( this, false ); }
 	//リソース系共通・読み込み結果処理コールバック
 	postResult( _elmTgt, _bSuccess ){
 		console.log(`[${_bSuccess?"OK":"NG"}] ${this.name} <- ${_elmTgt.src}`);
 		//コールバックをクリアする
 		if( _elmTgt.onload ){ _elmTgt.onload = null; }
 		if( _elmTgt.onerror ){ _elmTgt.onerror = null; }
-		if( _elmTgt.oncanplaythrough ){ _elmTgt.oncanplaythrough = null; }
 	}
 
 	get isIconReady(){ return this.HIEicon.naturalHeight > 0; }
-	get isAudioReady(){ return this.HAEtitle1.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA; }
+//	get isAudioReady(){ return this.HAEtitle1.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA; }
 
 /*
 	playVoice( _dest, _timing ){
@@ -149,9 +144,9 @@ mov		const urlic = new gURL( objrslt["icon_image_ref"], secondRequestURL ).href;
 				p.className = "imascg-"+objIdol.type;
 				p.appendChild( objIdol.HIEicon );
 				p.appendChild( NEW_TAG("br") );
-				p.appendChild( objIdol.HAEtitle1 );
-				objIdol.HAEtitle1.controls = true;
-				p.appendChild( NEW_TAG("br") );
+//				p.appendChild( objIdol.HAEtitle1 );
+//				objIdol.HAEtitle1.controls = true;
+//				p.appendChild( NEW_TAG("br") );
 				let q = NEW_TAG("span");
 				q.textContent = `#${++cnt}-${idx}/${arrslt.length}[${objIdol.cid}]`;
 				p.appendChild( q );
