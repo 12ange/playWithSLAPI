@@ -38,6 +38,10 @@ let arIdoldatas = [];
 let divLog = null;
 
 class tIdol {
+	//クラス用定数
+	static get pNmADtitle1(){ return "ADtitle1"; }
+
+	//**コンストラクタ**
 	constructor( _argobj ){
 		this.cid = _argobj["chara_id"]; //ID
 		this.name = _argobj["name"];    //名前
@@ -57,47 +61,38 @@ class tIdol {
 
 		// H TML I mage E lement の略
 		this.HIEicon = NEW_TAG("img");
-		this.HIEicon.owner = this; //このクラス自体にアクセスできるように
 		this.HIEicon.alt = this.name + ( this.voice ? `(cv. ${this.voice})` : "" );
-		this.HIEicon.onload = ()=>{ this.postResult( this.HIEicon, true ); };
-		this.HIEicon.onerror = ()=>{ this.postResult( this.HIEicon, false ); };
 		this.HIEicon.src = urlIcon;
 
-/*		// H TML A udio E lement の略
-		this.HAEtitle1 = NEW_TAG("audio");
-		this.HAEtitle1.owner = this;
-		this.HAEtitle1.oncanplaythrough = this.onOkayCallback; //最後まで再生できる状態になった
-		this.HAEtitle1.onerror = this.onErrorCallback;
-		this.HAEtitle1.src = urlTitle1; */
+		// 音声データを(非同期で)読み込む
+		this.fetchAudioData( this.constructor.pNmADtitle1, urlTitle1 );
 	}
 
-	//リソース系共通・読み込み結果処理コールバック
-	postResult( _elmTgt, _bSuccess ){
-		console.log(`[${_bSuccess?"OK":"NG"}] ${this.name} <- ${_elmTgt.src}`);
-		//コールバックをクリアする
-		if( _elmTgt.onload ){ _elmTgt.onload = null; }
-		if( _elmTgt.onerror ){ _elmTgt.onerror = null; }
+	//音源取得(非同期：内部でPromiseチェーンしている)
+	fetchAudioData( _propName, _href ){
+		this[_propName] = undefined;
+
+		fetch( _href
+		).then( r => r.arrayBuffer()
+		).then( ab => gAudioCtx.decodeAudioData(ab)
+		).then( ad => { this[_propName] = ad ; }
+		).catch( e => { this[_propName] = null;} );
 	}
 
+	//アイコン準備状態(読み取り専用プロパティ)
 	get isIconReady(){ return this.HIEicon.naturalHeight > 0; }
-//	get isAudioReady(){ return this.HAEtitle1.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA; }
-
-/*
-	playVoice( _dest, _timing ){
-		if( ! this.bufvoice ) return false;
+	//音声準備状態(読み取り専用プロパティ)
+	get isAudioReady(){ return !! this[ this.constructor.pNmADtitle1 ]; }
+	//音声再生
+	playAudio( _dest, _timing ){
+		if( ! this.isAudioReady ) return false;
 
 		let bfsrc = gAudioCtx.createBufferSource();
-		bfsrc.buffer = this.bufvoice;
+		bfsrc.buffer = this[ this.constructor.pNmADtitle1 ];
 		bfsrc.connect( _dest );
 		bfsrc.start( _timing );
-
 		return true;
 	}
-	//ボタンを押すとタイトルコール
-	onIconButton(){
-		this.owner.playVoice( gAudioCtx.destination, gAudioCtx.currentTime );
-	}
-*/
 }
 
 // ++非同期関数++ 問い合わせてレスポンスのJSONをオブジェクトに変換して返す。次の関数でのみ使う
@@ -123,36 +118,27 @@ async function asyncFetchResources() {
 	let cnt = 0;
 	for( let idx = 0 ; idx < arrslt.length ; idx++  ){
 		let objrslt = arrslt[idx];
-
 		if( ! objrslt["voice"] ) continue;
-		//先に音声の所在を確認し、成功したら画像を取り寄せる、の順。
-		//URLを相対から絶対に変換しておく
-/*		const id2vo = id => "/va2/"+(id ^ 0x1042fc).toString(16)+"10442d16ab.mp3";
-mov		const urlic = new gURL( objrslt["icon_image_ref"], secondRequestURL ).href;
--ed		const urlvo = new gURL( id2vo( objrslt["chara_id"] ), urlic ).href; //音声は画像と同じサーバにあるらしい。本家ソースちら見した限り。
-*/		//即fetchしてステータスを見る
-//		let resvo = await fetch(urlvo).catch( e=>{console.log("動作には支障ありません。");} ); //fetchのerrorは(try-catchと同様)、prms.catchでまるっと処理してしまえる
-//		if( resvo && resvo.status === 200 ){
-			//音声があった！
-//			const resic = await fetch(urlic);
-//			if( resic.status === 200 ){ //画像もOK
-				//新しいobjを作ってグローバル配列に追加
-				let objIdol = new tIdol(objrslt);
-				arIdoldatas.push(objIdol);
-				//グリッドシステムに表示ブロックを入れ込む。
-				let p = NEW_TAG("div");
-				p.className = "imascg-"+objIdol.type;
-				p.appendChild( objIdol.HIEicon );
-				p.appendChild( NEW_TAG("br") );
-//				p.appendChild( objIdol.HAEtitle1 );
-//				objIdol.HAEtitle1.controls = true;
-//				p.appendChild( NEW_TAG("br") );
-				let q = NEW_TAG("span");
-				q.textContent = `#${++cnt}-${idx}/${arrslt.length}[${objIdol.cid}]`;
-				p.appendChild( q );
-				elmfukol.insertBefore(p, elmfukol.firstChild);
-//			}
-//		}
+
+		//新しいobjを作ってグローバル配列に追加
+		let objIdol = new tIdol(objrslt);
+		arIdoldatas.push(objIdol);
+		//グリッドシステムに表示ブロックを入れ込む。
+		let p = NEW_TAG("div");
+		p.className = "imascg-"+objIdol.type;
+		p.appendChild( objIdol.HIEicon );
+		p.appendChild( NEW_TAG("br") );
+
+		let b = NEW_TAG("button");
+		b.textContent = tIdol.pNmADtitle1;
+		b.onclick = ()=>{ objIdol.playAudio( gAudioCtx.destination, gAudioCtx.currentTime ); };
+		p.appendChild( b );
+		p.appendChild( NEW_TAG("br") );
+
+		let q = NEW_TAG("span");
+		q.textContent = `#${++cnt}-${idx}/${arrslt.length}[${objIdol.cid}]`;
+		p.appendChild( q );
+		elmfukol.insertBefore(p, elmfukol.firstChild);
 	}
 	let p = NEW_TAG("p");
 	p.textContent = `読み取り完了。全 ${arrslt.length} 人中ボイス設定ありは ${cnt} 人でした。`;
