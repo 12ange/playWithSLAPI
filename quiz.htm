@@ -181,7 +181,8 @@ function cbIdolLoader( _objILr ){
 	console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
 
 	if( arIdolLoaders.length == 0 ){
-		//全部終わったー
+		//全部終わったー　とりあえずID順に整列
+		arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
 		for( objIdol of arIdolDatas ){
 			//グリッドシステムに表示ブロックを入れ込む。
 			let p = NEW_TAG("div");
