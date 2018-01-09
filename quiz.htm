@@ -34,75 +34,120 @@ const pathCharDetail = "/api/v1/char_t/";
 const urlFirstRequest = new gURL(pathCharList,hostStarlightDB);
 const urlVirtualRequest = new gURL( pathCharDetail, hostStarlightDB );
 
-let arIdoldatas = [];
+let arIdolDatas = [];
+let arIdolLoaders = [];
 let divLog = null;
+let divFukol = null;
 
 class tIdol {
 	//クラス用定数
+	static get pNmIMGicon(){ return "IMGicon"; }
 	static get pNmADtitle1(){ return "ADtitle1"; }
 
 	//**コンストラクタ**
 	constructor( _argobj ){
-		this.cid = _argobj["chara_id"]; //ID
-		this.name = _argobj["name"];    //名前
-		this.type = _argobj["type"];    //属性
-		this.voice = _argobj["voice"];  //担当声優
-
-		//初期化中にのみ使うもの
-		const id2vo = ch => `/va2/${ (this.cid ^ 0x1042fc).toString(16) }10442${ch}16ab.mp3`;
-		const urlIcon = new gURL( _argobj["icon_image_ref"], urlVirtualRequest ).href;
-		const urlTitle1 = new gURL( id2vo("c"), urlIcon ).href;
-		//本家ソースちら見した限り、音声は画像と同じサーバにあるらしい。
-
-		//アイドル個人の情報のvoiceが空文字列ではない＝タイトルコールがある「かもしれない」。
-		//例えば2017年の「恋が咲く季節」イベントの時(だと思われる)、この曲を歌うアイドルのCV 5名分 が反映されたものの、
-		//タイトルコール実装はカード報酬となった2名にとどまっている。
-		//タイトルコールが存在するかは個人情報JSONに現れないので直接音声ファイルのURLを叩いてみる。
-
-		// H TML I mage E lement の略
-		this.HIEicon = NEW_TAG("img");
-		this.HIEicon.alt = this.name + ( this.voice ? `(cv. ${this.voice})` : "" );
-		this.HIEicon.src = urlIcon;
-
-		// 音声データを(非同期で)読み込む
-		this.fetchAudioData( this.constructor.pNmADtitle1, urlTitle1 );
+		//同一名称プロパティをコピーしまくりんぐ
+		this.cid = _argobj["cid"];
+		this.name = _argobj["name"];
+		this.type = _argobj["type"];
+		this.voice = _argobj["voice"];
+		this[ this.constructor.pNmIMGicon ] = _argobj[ this.constructor.pNmIMGicon ];
+		this[ this.constructor.pNmADtitle1 ] = _argobj[ this.constructor.pNmADtitle1 ];
+		this[ this.constructor.pNmIMGicon ].alt = `${this.name} (cv. ${this.voice})`;
 	}
 
-	//音源取得(非同期：内部でPromiseチェーンしている)
-	fetchAudioData( _propName, _href ){
-		this[_propName] = undefined;
-
-		fetch( _href
-		).then( r => r.arrayBuffer()
-		).then( ab => gAudioCtx.decodeAudioData(ab)
-		).then( ad => { this[_propName] = ad ; }
-		).catch( e => { this[_propName] = null;} );
-	}
-
-	//アイコン準備状態(読み取り専用プロパティ)
-	get isIconReady(){ return this.HIEicon.naturalHeight > 0; }
-	//音声準備状態(読み取り専用プロパティ)
-	get isAudioReady(){ return !! this[ this.constructor.pNmADtitle1 ]; }
-	//音声再生
-	playAudio( _dest, _timing ){
-		if( ! this.isAudioReady ) return false;
-
+	//プロパティ名を指定して音声再生
+	playAudio( _pName, _dest, _timing ){
 		let bfsrc = gAudioCtx.createBufferSource();
-		bfsrc.buffer = this[ this.constructor.pNmADtitle1 ];
+		bfsrc.buffer = this[ _pName ];
 		bfsrc.connect( _dest );
 		bfsrc.start( _timing );
 		return true;
 	}
 }
 
-// ++非同期関数++ 問い合わせてレスポンスのJSONをオブジェクトに変換して返す。次の関数でのみ使う
-async function asyncFetchAndStrip( url ) {
-	const resReq = await fetch( url.href );
-	return (await resReq.json())["result"];
+class tIdolLoader {
+
+	//**コンストラクタ**
+	constructor( _argobj ){
+		//必要な情報を抜き取る(含・tIdol生成時にのみ必要なもの)
+		this.cid = _argobj["chara_id"]; //ID
+		this.name = _argobj["name"];    //名前
+		this.type = _argobj["type"];    //属性
+		this.voice = _argobj["voice"];  //担当声優
+		//アイコン画像のURLは絶対参照に変換して保存
+		this.urlIcon = new gURL( _argobj["icon_image_ref"], urlVirtualRequest ).href;
+	}
+
+	//非同期読み込み開始
+	async asyncLoad( _fnFinally ){
+		// ++非同期関数++ URLから音声データにする
+		const asyncGetAudioData = async ( _href )=>{
+			let aud;
+			try {
+				const rsp = await fetch(_href);
+				const abf = await rsp.arrayBuffer();
+				aud = await gAudioCtx.decodeAudioData(abf);
+			} catch (e) {
+				aud = null;
+			}
+			return aud;
+		};
+		// ++非同期関数++ URLから
+		const promiseGetImage = ( _href )=>{
+			return new Promise( (resolve,reject)=>{
+				let hie = NEW_TAG("img");
+				hie.onload = ()=>{ resolve(hie); };
+				hie.onerror = (e)=>{ reject(e); };
+				hie.src = _href;
+			} );
+		};
+
+		//アイドル個人の情報のvoiceが空文字列ではない＝タイトルコールがある「かもしれない」。
+		//例えば2017年の「恋が咲く季節」イベントの時(だと思われる)、この曲を歌うアイドルのCV 5名分 が反映されたものの、
+		//タイトルコール実装はカード報酬となった2名にとどまっている。
+		//タイトルコールが存在するかは個人情報JSONに現れないので直接音声ファイルのURLを叩いてみる。
+		const id2vo = c => `/va2/${ (this.cid ^ 0x1042fc).toString(16) }10442${c}16ab.mp3`;
+		//本家ソースちら見した限り、音声は画像と同じサーバにあるらしい。
+		const urlTitleS = new gURL( id2vo("c"), this.urlIcon ).href; //タイトルコール/ソロ用
+		//const urlTitleU = new gURL( id2vo("d"), this.urlIcon ).href; //タイトルコール/ユニット用
+		//const urlNameX = new gURL( id2vo("1"), this.urlIcon ).href;  //名前(体言止め)
+		//const urlNameD = new gURL( id2vo("2"), this.urlIcon ).href;  //名前＋です
+
+		try {
+			this[tIdol.pNmADtitle1] = await asyncGetAudioData(urlTitleS);
+			if( ! this[tIdol.pNmADtitle1] ){ throw "if there is HTTP:404 then never mind."; }
+			//引き続き、残る要素を読み込む。並列処理テクを使う。
+			//1. await抜きでasync関数を呼び出すことでPromiseを生成(実行開始)。
+			const prmIcon = promiseGetImage(this.urlIcon);
+			//2. そのPromiseインスタンスをawaitする。Promise群の中で一番遅いものの時間で処理できる。
+			this[tIdol.pNmIMGicon] = await prmIcon;
+		} catch (e) {
+			//読み込めなかったらこのブロックに来てからfinallyブロックへ
+			console.log(e);
+		} finally {
+			_fnFinally( this );
+		}
+	}
+
+	//class tIdol のインスタンスを取り出す。さもなくば return null
+	standIdol(){
+		return (
+			this[tIdol.pNmADtitle1] && this[tIdol.pNmIMGicon]
+		)? new tIdol(this) : null;
+	}
 }
+
 
 // ++非同期関数++ リソースの読み出し
 async function asyncFetchResources() {
+
+	// ++非同期関数++ 問い合わせてレスポンスのJSONをオブジェクトに変換して返す。
+	const asyncFetchAndStrip = async ( url ) => {
+		const resReq = await fetch( url.href );
+		return (await resReq.json())["result"];
+	};
+
 	let arrslt = await asyncFetchAndStrip(urlFirstRequest);
 	//最初の結果を利用して次に呼び出すURLを構築
 	let strCharIds = "";
@@ -110,45 +155,59 @@ async function asyncFetchResources() {
 	let secondRequestURL = new gURL(pathCharDetail+strCharIds, urlFirstRequest);
 	arrslt = await asyncFetchAndStrip(secondRequestURL);
 
-	const elmfukol = NEW_TAG("div");
-	elmfukol.className = "fukol-grid";
-	divLog.appendChild(elmfukol);
-
-	//大量のfetchを発して相手サーバに負荷をかけるのも悪いので、わざと一つずつfetchしている。
-	let cnt = 0;
-	for( let idx = 0 ; idx < arrslt.length ; idx++  ){
-		let objrslt = arrslt[idx];
+	for( let objrslt of arrslt ){
 		if( ! objrslt["voice"] ) continue;
-
-		//新しいobjを作ってグローバル配列に追加
-		let objIdol = new tIdol(objrslt);
-		arIdoldatas.push(objIdol);
-		//グリッドシステムに表示ブロックを入れ込む。
-		let p = NEW_TAG("div");
-		p.className = "imascg-"+objIdol.type;
-		p.appendChild( objIdol.HIEicon );
-		p.appendChild( NEW_TAG("br") );
-
-		let b = NEW_TAG("button");
-		b.textContent = tIdol.pNmADtitle1;
-		b.onclick = ()=>{ objIdol.playAudio( gAudioCtx.destination, gAudioCtx.currentTime ); };
-		p.appendChild( b );
-		p.appendChild( NEW_TAG("br") );
-
-		let q = NEW_TAG("span");
-		q.textContent = `#${++cnt}-${idx}/${arrslt.length}[${objIdol.cid}]`;
-		p.appendChild( q );
-		elmfukol.insertBefore(p, elmfukol.firstChild);
+		//専用のローダーに返答オブジェクトを渡せば良いようにしてあります
+		let idldr = new tIdolLoader(objrslt);
+		arIdolLoaders.push( idldr );
+		idldr.asyncLoad( cbIdolLoader );
 	}
-	let p = NEW_TAG("p");
-	p.textContent = `読み取り完了。全 ${arrslt.length} 人中ボイス設定ありは ${cnt} 人でした。`;
-	divLog.insertBefore(p, divLog.firstChild);
+	console.log(`(asyncFetchResources) 全 ${arrslt.length} 人、CV設定あり ${arIdolLoaders.length} 人`);
+}
+
+//callback of tIdolLoaer
+function cbIdolLoader( _objILr ){
+
+	//インスタンスを取り出せれば配列に登録。
+	let objIdol = _objILr.standIdol();
+	if( objIdol ){ arIdolDatas.push( objIdol ); }
+
+	//処理が終わったので、配列から取り除く
+	const idxILs = arIdolLoaders.indexOf( _objILr );
+	if( idxILs < 0 ) throw new Error("cbIdolLoader() / unknown tIdolLoader object found");
+	arIdolLoaders.splice( idxILs,　1　);
+
+	//ここに表示リフレッシュ処理
+	console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
+
+	if( arIdolLoaders.length == 0 ){
+		//全部終わったー
+		for( objIdol of arIdolDatas ){
+			//グリッドシステムに表示ブロックを入れ込む。
+			let p = NEW_TAG("div");
+			p.className = "imascg-"+objIdol.type;
+			p.appendChild( objIdol[tIdol.pNmIMGicon] );
+//			p.appendChild( NEW_TAG("br") );
+/*
+			let b = NEW_TAG("button");
+			b.textContent = tIdol.pNmADtitle1;
+			b.idol = objIdol;
+			b.onclick = ()=>{ this.idol.playAudio( tIdol.pNmADtitle1, gAudioCtx.destination, gAudioCtx.currentTime ); };
+			p.appendChild( b );
+			p.appendChild( NEW_TAG("br") );
+*/
+			divFukol.insertBefore(p, divFukol.firstChild);
+		}
+	}
 }
 
 //ページ読み込み時処理
 window.addEventListener("load",()=>{
 	divLog = NEW_TAG("div");
 	document.body.appendChild(divLog);
+	divFukol = NEW_TAG("div");
+	divFukol.className = "fukol-grid";
+	divLog.appendChild(divFukol);
 	asyncFetchResources();
 });
 
