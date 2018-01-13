@@ -196,7 +196,7 @@ function afterFetch(){
 	arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
 
 	//グリッドシステムに表示ブロックを入れ込む。
-	for( objIdol of arIdolDatas ){
+	for( let objIdol of arIdolDatas ){
 		let p = NEW_TAG("div");
 		p.className = "imascg-"+objIdol.type;
 		p.appendChild( objIdol[tIdol.pNmIMGicon] );
