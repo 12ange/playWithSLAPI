@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>タイトルコール当てクイズ</title>
-<style type="text/css">
+<style>
 
 /* Fukol https://github.com/Heydon/fukol-grids */
 .fukol-grid{display:flex;flex-wrap:wrap;margin:-.5em;}
@@ -13,10 +13,7 @@
 .imascg-cool{color:#06f; background-color:#eef}
 .imascg-passion{color:#c80; background-color:#feb}
 
-</style>
-</head>
-<body>
-<script>
+</style></head><body><script>
 
 "use strict";
 const NEW_TAG = (tag) => document.createElement(tag);
@@ -59,9 +56,9 @@ class tIdol {
 	//プロパティ名を指定して音声再生
 	playAudio( _pName, _dest, _timing ){
 		let bfsrc = gAudioCtx.createBufferSource();
-		bfsrc.buffer = this[ _pName ];
-		bfsrc.connect( _dest );
-		bfsrc.start( _timing );
+		bfsrc.buffer = this[ _pName ? _pName : this.constructor.pNmADtitle1 ];
+		bfsrc.connect( _dest ? _dest : gAudioCtx.destination );
+		bfsrc.start( _timing ? _timing : gAudioCtx.currentTime );
 		return true;
 	}
 }
@@ -180,37 +177,44 @@ function cbIdolLoader( _objILr ){
 	//ここに表示リフレッシュ処理
 	console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
 
-	if( arIdolLoaders.length == 0 ){
-		//全部終わったー　とりあえずID順に整列
-		arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
-		for( objIdol of arIdolDatas ){
-			//グリッドシステムに表示ブロックを入れ込む。
-			let p = NEW_TAG("div");
-			p.className = "imascg-"+objIdol.type;
-			p.appendChild( objIdol[tIdol.pNmIMGicon] );
-//			p.appendChild( NEW_TAG("br") );
-/*
-			let b = NEW_TAG("button");
-			b.textContent = tIdol.pNmADtitle1;
-			b.idol = objIdol;
-			b.onclick = ()=>{ this.idol.playAudio( tIdol.pNmADtitle1, gAudioCtx.destination, gAudioCtx.currentTime ); };
-			p.appendChild( b );
-			p.appendChild( NEW_TAG("br") );
-*/
-			divFukol.insertBefore(p, divFukol.firstChild);
-		}
-	}
+	//全部終わったー
+	if( arIdolLoaders.length == 0 ){ afterFetch(); }
 }
 
-//ページ読み込み時処理
-window.addEventListener("load",()=>{
+//リソース読み出し前処理
+function beforeFetch(){
 	divLog = NEW_TAG("div");
 	document.body.appendChild(divLog);
 	divFukol = NEW_TAG("div");
 	divFukol.className = "fukol-grid";
 	divLog.appendChild(divFukol);
-	asyncFetchResources();
-});
+}
+
+//リソース読み出し後処理
+function afterFetch(){
+	//ID順・昇順に整列。リソース読み出し完了は順不同になるため。
+	arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
+
+	//グリッドシステムに表示ブロックを入れ込む。
+	for( objIdol of arIdolDatas ){
+		let p = NEW_TAG("div");
+		p.className = "imascg-"+objIdol.type;
+		p.appendChild( objIdol[tIdol.pNmIMGicon] );
+//		p.appendChild( NEW_TAG("br") );
+/*
+		let b = NEW_TAG("button");
+		b.textContent = tIdol.pNmADtitle1;
+		b.idol = objIdol;
+		b.onclick = ()=>{ this.idol.playAudio( tIdol.pNmADtitle1, gAudioCtx.destination, gAudioCtx.currentTime ); };
+		p.appendChild( b );
+		p.appendChild( NEW_TAG("br") );
+*/
+		divFukol.insertBefore(p, divFukol.firstChild);
+	}
+}
+
+//ページ読み込み時処理
+window.addEventListener("load", ()=>{ beforeFetch(); asyncFetchResources(); } );
 
 </script>
 </body>
