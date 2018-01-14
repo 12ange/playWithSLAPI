@@ -174,20 +174,21 @@ function cbIdolLoader( _objILr ){
 	if( idxILs < 0 ) throw new Error("cbIdolLoader() / unknown tIdolLoader object found");
 	arIdolLoaders.splice( idxILs,　1　);
 
-	//ここに表示リフレッシュ処理
+	//状態更新(反映)処理を呼ぶ
 	console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
-
-	//全部終わったー
+	progressFetch();
 	if( arIdolLoaders.length == 0 ){ afterFetch(); }
 }
 
 //リソース読み出し前処理
 function beforeFetch(){
-	divLog = NEW_TAG("div");
-	document.body.appendChild(divLog);
-	divFukol = NEW_TAG("div");
-	divFukol.className = "fukol-grid";
-	divLog.appendChild(divFukol);
+	document.body.appendChild( divLog = NEW_TAG("div") );
+	divLog.appendChild( NEW_TAG("div") ); //一つだけ子供を持たせる
+}
+
+//リソース読み出し中処理
+function progressFetch(){
+	divLog.lastChild.textContent = `x${arIdolDatas.length} x${arIdolLoaders.length}`;
 }
 
 //リソース読み出し後処理
@@ -195,22 +196,6 @@ function afterFetch(){
 	//ID順・昇順に整列。リソース読み出し完了は順不同になるため。
 	arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
 
-	//グリッドシステムに表示ブロックを入れ込む。
-	for( let objIdol of arIdolDatas ){
-		let p = NEW_TAG("div");
-		p.className = "imascg-"+objIdol.type;
-		p.appendChild( objIdol[tIdol.pNmIMGicon] );
-//		p.appendChild( NEW_TAG("br") );
-/*
-		let b = NEW_TAG("button");
-		b.textContent = tIdol.pNmADtitle1;
-		b.idol = objIdol;
-		b.onclick = ()=>{ this.idol.playAudio( tIdol.pNmADtitle1, gAudioCtx.destination, gAudioCtx.currentTime ); };
-		p.appendChild( b );
-		p.appendChild( NEW_TAG("br") );
-*/
-		divFukol.insertBefore(p, divFukol.firstChild);
-	}
 }
 
 //ページ読み込み時処理
