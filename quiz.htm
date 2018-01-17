@@ -33,18 +33,18 @@ button {
     border:6px solid #999;
     border-radius: 16px;
     padding:10px;
-    animation: sparkle-borderColor 2s linear infinite both;
-    transition-property: background-color;
-    transition-duration: 1s;
 }
-button:active { /* while down */
+button:enabled {
+    animation: sparkle-borderColor 2s linear infinite both;
+}
+button:enabled:active { /* while down */
     border-style: inset;
 }
-button:focus {
+button:enabled:focus {
     border-color: #3f6;
     animation-name:none
 }
-button:hover {
+button:enabled:hover {
     background-color: #3f6;
 }
 
@@ -264,18 +264,67 @@ function setupTitleScreen(){
 	divInput.appendChild(b);
 }
 
+//クイズに使う値
+let indexQuiz;
+let countQuiz;
+let countCorrect;
+let countWrong;
+//TODO:オブジェクトでひとまとめにしよう
+
 //クイズ画面構成
 function setupQuizScreen(){
 	clearDivIO();
 
+	//TODO:使うHTMLElementたちはもっと前に作れるし、参照をどこかで取っておける
 	const p = NEW_TAG("span");
-	p.textContent = "クイズ画面";
 	divOutput.appendChild(p);
+	divOutput.appendChild( NEW_TAG("br") );
 
 	const b = NEW_TAG("button");
-	b.textContent = "END";
-	b.onclick = ()=>{ setupTitleScreen(); };
-	divInput.appendChild(b);
+	b.textContent = "PLAY";
+	b.onclick = playQuizSound;
+	divOutput.appendChild(b);
+
+	const s = NEW_TAG("select");
+	for (const n of arIdolDatas.map( (o)=>o["name"] )) {
+		s.add( new Option(n,n) );
+	}
+	divInput.appendChild(s);
+
+	const a = NEW_TAG("button");
+	a.textContent = "ANSWER";
+	a.onclick = judgeAnswer;
+	divInput.appendChild(a);
+
+	countQuiz = countCorrect = countWrong = 0;
+	makeQuiz();
+}
+
+//出題(準備)する
+function makeQuiz(){
+	divOutput.firstChild.textContent = `第 ${++countQuiz} 問 / ${countCorrect}-${countWrong}`;
+	indexQuiz = (Math.random()*arIdolDatas.length)|0;
+	//ボタンを使用可能にする
+	divOutput.lastChild.disabled = false;
+	divInput.lastChild.disabled = true;
+}
+
+//音声再生
+function playQuizSound(){
+	arIdolDatas[indexQuiz].playAudio();
+	//ボタンを使用不能にする
+	divOutput.lastChild.disabled = true;
+	divInput.lastChild.disabled = false;
+}
+
+//正誤判定
+function judgeAnswer(){
+	const bJudge = indexQuiz === divInput.firstChild.selectedIndex;
+	
+	bJudge ? ++countCorrect : ++countWrong ;
+	//本来は正誤表示を出し、待機して次の問題or前の画面へ
+	//正解は誰だったかがわかるように。
+	makeQuiz();
 }
 
 //ページ読み込み時処理
