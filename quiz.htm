@@ -2,16 +2,51 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>タイトルコール当てクイズ</title>
+<title>デレステタイトルコール当てクイズ</title>
 <style>
 
+/* 共通設定 */
+body{text-align:center}
+h1{margin:.5em 0}
 /* Fukol https://github.com/Heydon/fukol-grids */
-.fukol-grid{display:flex;flex-wrap:wrap;margin:-.5em;}
-.fukol-grid>*{flex:1 0 5em;margin:.5em;}
+.fukol-grid{display:flex;flex-wrap:wrap;margin:-.5em}
+.fukol-grid>*{flex:1 0 5em;margin:.5em}
 /* 属性色設定 */
 .imascg-cute{color:#e26; background-color:#fdd}
 .imascg-cool{color:#06f; background-color:#eef}
 .imascg-passion{color:#c80; background-color:#feb}
+/*その他、実験用*/
+.quiz-log{color:silver}
+.quiz-input{border:1px dashed green;margin:.3em;padding:.2em}
+.quiz-output{border:1px dotted cyan;margin:.3em;padding:.2em}
+
+/* animation (testing)*/
+@keyframes sparkle-borderColor {
+    0% { border-color:#999 }
+    1% { border-color:#ccc }
+    12% { border-color:#bbb }
+    34% { border-color:#aaa }
+    100% { border-color:#999 }
+}
+button {
+    background-color: transparent;
+    border:6px solid #999;
+    border-radius: 16px;
+    padding:10px;
+    animation: sparkle-borderColor 2s linear infinite both;
+    transition-property: background-color;
+    transition-duration: 1s;
+}
+button:active { /* while down */
+    border-style: inset;
+}
+button:focus {
+    border-color: #3f6;
+    animation-name:none
+}
+button:hover {
+    background-color: #3f6;
+}
 
 </style></head><body><script>
 
@@ -34,7 +69,8 @@ const urlVirtualRequest = new gURL( pathCharDetail, hostStarlightDB );
 let arIdolDatas = [];
 let arIdolLoaders = [];
 let divLog = null;
-let divFukol = null;
+let divInput = null;
+let divOutput = null;
 
 class tIdol {
 	//クラス用定数
@@ -135,7 +171,6 @@ class tIdolLoader {
 	}
 }
 
-
 // ++非同期関数++ リソースの読み出し
 async function asyncFetchResources() {
 
@@ -182,20 +217,65 @@ function cbIdolLoader( _objILr ){
 
 //リソース読み出し前処理
 function beforeFetch(){
+	let h = NEW_TAG("h1");
+	h.textContent = document.title;
+	document.body.appendChild( h );
 	document.body.appendChild( divLog = NEW_TAG("div") );
-	divLog.appendChild( NEW_TAG("div") ); //一つだけ子供を持たせる
+	divLog.textContent = "リソース取得中...";
 }
 
 //リソース読み出し中処理
 function progressFetch(){
-	divLog.lastChild.textContent = `x${arIdolDatas.length} x${arIdolLoaders.length}`;
+	divLog.textContent = `リソース取得中... x${arIdolDatas.length}+${arIdolLoaders.length}?`;
 }
 
 //リソース読み出し後処理
 function afterFetch(){
 	//ID順・昇順に整列。リソース読み出し完了は順不同になるため。
 	arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
+	divLog.textContent = `リソース取得完了。タイトルコール実装済みアイドルは ${arIdolDatas.length} 人です。`;
+	//全スクリーン共通の配置準備
+	document.body.appendChild( divOutput = NEW_TAG("div") );
+	document.body.appendChild( divInput = NEW_TAG("div") );
+	divOutput.className = "quiz-output";
+	divInput.className = "quiz-input";
+	divLog.className = "quiz-log"; //ログメッセージ表示部が目立たなくなる(これ以降変化しないが、隠すには惜しい情報)
+	setupTitleScreen();
+}
 
+//子ノードを全部外す
+function clearDivIO(){
+	const detach = (n)=>{ while(n.lastChild){ n.removeChild(n.lastChild); } };
+	detach(divOutput);
+	detach(divInput);
+}
+
+//タイトル画面構成
+function setupTitleScreen(){
+	clearDivIO();
+	
+	const p = NEW_TAG("span");
+	p.textContent = "モード選択";
+	divOutput.appendChild(p);
+
+	const b = NEW_TAG("button");
+	b.textContent = "START";
+	b.onclick = ()=>{ setupQuizScreen(); };
+	divInput.appendChild(b);
+}
+
+//クイズ画面構成
+function setupQuizScreen(){
+	clearDivIO();
+
+	const p = NEW_TAG("span");
+	p.textContent = "クイズ画面";
+	divOutput.appendChild(p);
+
+	const b = NEW_TAG("button");
+	b.textContent = "END";
+	b.onclick = ()=>{ setupTitleScreen(); };
+	divInput.appendChild(b);
 }
 
 //ページ読み込み時処理
