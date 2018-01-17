@@ -75,24 +75,26 @@ let divOutput = null;
 class tIdol {
 	//クラス用定数
 	static get pNmIMGicon(){ return "IMGicon"; }
-	static get pNmADtitle1(){ return "ADtitle1"; }
+	static get pNmADtitleS(){ return "ADtitleS"; }
+	static get pNmADtitleU(){ return "ADtitleU"; }
+	static get pNmADnameD(){ return "ADnameD"; }
+	static get pNmADnameX(){ return "ADnameX"; }
 
 	//**コンストラクタ**
 	constructor( _argobj ){
 		//同一名称プロパティをコピーしまくりんぐ
-		this.cid = _argobj["cid"];
-		this.name = _argobj["name"];
-		this.type = _argobj["type"];
-		this.voice = _argobj["voice"];
-		this[ this.constructor.pNmIMGicon ] = _argobj[ this.constructor.pNmIMGicon ];
-		this[ this.constructor.pNmADtitle1 ] = _argobj[ this.constructor.pNmADtitle1 ];
+		const copyProprts = (a)=>{ for(const n of a){ this[n] = _argobj[n]; } };
+		copyProprts( [
+			"cid","name","type","voice", this.constructor.pNmIMGicon,
+			this.constructor.pNmADtitleS, this.constructor.pNmADtitleU, this.constructor.pNmADnameD, this.constructor.pNmADnameX
+		] );
 		this[ this.constructor.pNmIMGicon ].alt = `${this.name} (cv. ${this.voice})`;
 	}
 
 	//プロパティ名を指定して音声再生
 	playAudio( _pName, _dest, _timing ){
 		let bfsrc = gAudioCtx.createBufferSource();
-		bfsrc.buffer = this[ _pName ? _pName : this.constructor.pNmADtitle1 ];
+		bfsrc.buffer = this[ _pName ? _pName : this.constructor.pNmADtitleS ];
 		bfsrc.connect( _dest ? _dest : gAudioCtx.destination );
 		bfsrc.start( _timing ? _timing : gAudioCtx.currentTime );
 		return true;
@@ -126,7 +128,7 @@ class tIdolLoader {
 			}
 			return aud;
 		};
-		// ++非同期関数++ URLから
+		// ++非同期関数++ URLから画像を取得
 		const promiseGetImage = ( _href )=>{
 			return new Promise( (resolve,reject)=>{
 				let hie = NEW_TAG("img");
@@ -143,18 +145,24 @@ class tIdolLoader {
 		const id2vo = c => `/va2/${ (this.cid ^ 0x1042fc).toString(16) }10442${c}16ab.mp3`;
 		//本家ソースちら見した限り、音声は画像と同じサーバにあるらしい。
 		const urlTitleS = new gURL( id2vo("c"), this.urlIcon ).href; //タイトルコール/ソロ用
-		//const urlTitleU = new gURL( id2vo("d"), this.urlIcon ).href; //タイトルコール/ユニット用
-		//const urlNameX = new gURL( id2vo("1"), this.urlIcon ).href;  //名前(体言止め)
-		//const urlNameD = new gURL( id2vo("2"), this.urlIcon ).href;  //名前＋です
+		const urlTitleU = new gURL( id2vo("d"), this.urlIcon ).href; //タイトルコール/ユニット用
+		const urlNameD = new gURL( id2vo("2"), this.urlIcon ).href;  //名前＋です
+		const urlNameX = new gURL( id2vo("1"), this.urlIcon ).href;  //名前(体言止め)
 
 		try {
-			this[tIdol.pNmADtitle1] = await asyncGetAudioData(urlTitleS);
-			if( ! this[tIdol.pNmADtitle1] ){ throw "if there is HTTP:404 then never mind."; }
+			this[tIdol.pNmADtitleS] = await asyncGetAudioData(urlTitleS);
+			if( ! this[tIdol.pNmADtitleS] ){ throw "if there is HTTP:404 then never mind."; }
 			//引き続き、残る要素を読み込む。並列処理テクを使う。
 			//1. await抜きでasync関数を呼び出すことでPromiseを生成(実行開始)。
 			const prmIcon = promiseGetImage(this.urlIcon);
+			const prmTitleU = asyncGetAudioData(urlTitleU);
+			const prmNameD = asyncGetAudioData(urlNameD);
+			const prmNameX = asyncGetAudioData(urlNameX);
 			//2. そのPromiseインスタンスをawaitする。Promise群の中で一番遅いものの時間で処理できる。
 			this[tIdol.pNmIMGicon] = await prmIcon;
+			this[tIdol.pNmADtitleU] = await prmTitleU;
+			this[tIdol.pNmADnameD] = await prmNameD;
+			this[tIdol.pNmADnameX] = await prmNameX;
 		} catch (e) {
 			//読み込めなかったらこのブロックに来てからfinallyブロックへ
 			console.log(e);
@@ -166,7 +174,7 @@ class tIdolLoader {
 	//class tIdol のインスタンスを取り出す。さもなくば return null
 	standIdol(){
 		return (
-			this[tIdol.pNmADtitle1] && this[tIdol.pNmIMGicon]
+			this[tIdol.pNmIMGicon] && this[tIdol.pNmADtitleS] && this[tIdol.pNmADtitleU] && this[tIdol.pNmADnameD] && this[tIdol.pNmADnameX]
 		)? new tIdol(this) : null;
 	}
 }
@@ -311,7 +319,7 @@ function makeQuiz(){
 
 //音声再生
 function playQuizSound(){
-	arIdolDatas[indexQuiz].playAudio();
+	arIdolDatas[indexQuiz].playAudio(tIdol.pNmADtitleS);
 	//ボタンを使用不能にする
 	divOutput.lastChild.disabled = true;
 	divInput.lastChild.disabled = false;
@@ -324,6 +332,7 @@ function judgeAnswer(){
 	bJudge ? ++countCorrect : ++countWrong ;
 	//本来は正誤表示を出し、待機して次の問題or前の画面へ
 	//正解は誰だったかがわかるように。
+	arIdolDatas[indexQuiz].playAudio(tIdol.pNmADnameD);
 	makeQuiz();
 }
 
