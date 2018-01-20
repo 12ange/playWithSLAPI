@@ -218,7 +218,7 @@ function cbIdolLoader( _objILr ){
 	arIdolLoaders.splice( idxILs,　1　);
 
 	//状態更新(反映)処理を呼ぶ
-	console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
+	//console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
 	progressFetch();
 	if( arIdolLoaders.length == 0 ){ afterFetch(); }
 }
@@ -248,7 +248,55 @@ function afterFetch(){
 	divOutput.className = "quiz-output";
 	divInput.className = "quiz-input";
 	divLog.className = "quiz-log"; //ログメッセージ表示部が目立たなくなる(これ以降変化しないが、隠すには惜しい情報)
+	initScreenElements();
 	setupTitleScreen();
+}
+
+//ページ読み込み時処理
+window.addEventListener("load", ()=>{ beforeFetch(); asyncFetchResources(); } );
+
+//^^^^^^^^ ここまで準備 ^^^^^^^^
+//vvvvvvvv ここから本題 vvvvvvvv
+
+//クイズに使う値
+let indexQuiz;
+let countQuiz;
+let countCorrect;
+let countWrong;
+//クイズに使うHTMLElement
+let HSEchoice; //HSE is <select>
+let HBEplay;   //HBE is <button>
+let HBEanswer;
+//TODO:オブジェクトでひとまとめに……する？
+
+//以降の画面で使われるHTMLElement群の初期化
+function initScreenElements(){
+	//アイドル選択。本当はプルダウンじゃなくてアイコンタップにしたい
+	HSEchoice = NEW_TAG("select");
+	for (const d of arIdolDatas) {
+		const o = new Option( d.name, d.name );
+		o.className = "imascg-"+d.type;
+		HSEchoice.add( o );
+	}
+	HSEchoice.onchange = ()=>{
+		HSEchoice.className = HSEchoice.selectedOptions[0].className;
+	};
+
+	//再生ボタン。
+	HBEplay = NEW_TAG("button");
+	HBEplay.funcChangeEnable = (b)=>{
+		HBEplay.disabled = !b;
+		HBEplay.textContent = b ? "PLAY" : ">>>>";
+	};
+	HBEplay.onclick = playQuizSound;
+
+	//回答ボタン。
+	HBEanswer = NEW_TAG("button");
+	HBEanswer.funcChangeEnable = (b)=>{
+		HBEanswer.disabled = !b;
+		HBEanswer.textContent = b ? "ANSWER" : "------";
+	};
+	HBEanswer.onclick = judgeAnswer;
 }
 
 //子ノードを全部外す
@@ -272,13 +320,6 @@ function setupTitleScreen(){
 	divInput.appendChild(b);
 }
 
-//クイズに使う値
-let indexQuiz;
-let countQuiz;
-let countCorrect;
-let countWrong;
-//TODO:オブジェクトでひとまとめにしよう
-
 //クイズ画面構成
 function setupQuizScreen(){
 	clearDivIO();
@@ -288,21 +329,11 @@ function setupQuizScreen(){
 	divOutput.appendChild(p);
 	divOutput.appendChild( NEW_TAG("br") );
 
-	const b = NEW_TAG("button");
-	b.textContent = "PLAY";
-	b.onclick = playQuizSound;
-	divOutput.appendChild(b);
+	divOutput.appendChild(HBEplay);
 
-	const s = NEW_TAG("select");
-	for (const n of arIdolDatas.map( (o)=>o["name"] )) {
-		s.add( new Option(n,n) );
-	}
-	divInput.appendChild(s);
-
-	const a = NEW_TAG("button");
-	a.textContent = "ANSWER";
-	a.onclick = judgeAnswer;
-	divInput.appendChild(a);
+	divInput.appendChild(HSEchoice);
+	divInput.appendChild( NEW_TAG("br") );
+	divInput.appendChild(HBEanswer);
 
 	countQuiz = countCorrect = countWrong = 0;
 	makeQuiz();
@@ -313,31 +344,33 @@ function makeQuiz(){
 	divOutput.firstChild.textContent = `第 ${++countQuiz} 問 / ${countCorrect}-${countWrong}`;
 	indexQuiz = (Math.random()*arIdolDatas.length)|0;
 	//ボタンを使用可能にする
-	divOutput.lastChild.disabled = false;
-	divInput.lastChild.disabled = true;
+	HBEplay.funcChangeEnable(true);
+	HBEanswer.funcChangeEnable(false);
 }
 
 //音声再生
 function playQuizSound(){
 	arIdolDatas[indexQuiz].playAudio(tIdol.pNmADtitleS);
 	//ボタンを使用不能にする
-	divOutput.lastChild.disabled = true;
-	divInput.lastChild.disabled = false;
+	HBEplay.funcChangeEnable(false);
+	HBEanswer.funcChangeEnable(true);
 }
 
 //正誤判定
 function judgeAnswer(){
-	const bJudge = indexQuiz === divInput.firstChild.selectedIndex;
-	
+	const bJudge = indexQuiz === HSEchoice.selectedIndex;
 	bJudge ? ++countCorrect : ++countWrong ;
 	//本来は正誤表示を出し、待機して次の問題or前の画面へ
+	console.log(
+		countQuiz+(bJudge
+			?"[O]"
+			:`[X]${arIdolDatas[HSEchoice.selectedIndex].name} ではなくて `
+		)+arIdolDatas[indexQuiz].name
+	);
 	//正解は誰だったかがわかるように。
 	arIdolDatas[indexQuiz].playAudio(tIdol.pNmADnameD);
 	makeQuiz();
 }
-
-//ページ読み込み時処理
-window.addEventListener("load", ()=>{ beforeFetch(); asyncFetchResources(); } );
 
 </script>
 </body>
