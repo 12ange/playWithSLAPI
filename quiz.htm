@@ -20,6 +20,7 @@ h1{margin:.5em 0}
 .quiz-input{border:1px dashed green;margin:.3em;padding:.2em}
 .quiz-output{border:1px dotted cyan;margin:.3em;padding:.2em}
 
+
 /* animation (testing)*/
 @keyframes sparkle-borderColor {
     0% { border-color:#999 }
@@ -58,6 +59,10 @@ const GET_ID = (id) => document.getElementById(id);
 const gAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
 // Webkit/blink系ブラウザは接頭辞が必要、Safariは「window.」をつけないと動かない
 const gURL = window.URL || window.webkitURL; //URLも同様らしいのでそうしておく
+
+const msgPlzHoldOn = "⌛リソース取得中..."; //PLEASE HOLD ON
+const msgFineFetch = "✔リソース取得完了。タイトルコール実装済みアイドルは";
+const msgFineFetch2 = "人です。";
 
 const hostStarlightDB = "https://starlight.kirara.ca/";
 const pathCharList = "/api/v1/list/char_t?keys=chara_id";
@@ -229,21 +234,22 @@ function beforeFetch(){
 	h.textContent = document.title;
 	document.body.appendChild( h );
 	document.body.appendChild( divLog = NEW_TAG("div") );
-	divLog.textContent = "リソース取得中...";
+	divLog.textContent = msgPlzHoldOn;
+	document.body.appendChild( divOutput = NEW_TAG("div") );
+	//divOutput.appendChild(); 待機アニメーション予定地
 }
 
 //リソース読み出し中処理
 function progressFetch(){
-	divLog.textContent = `リソース取得中... x${arIdolDatas.length}+${arIdolLoaders.length}?`;
+	divLog.textContent = `${msgPlzHoldOn} x${arIdolDatas.length}+${arIdolLoaders.length}?`;
 }
 
 //リソース読み出し後処理
 function afterFetch(){
 	//ID順・昇順に整列。リソース読み出し完了は順不同になるため。
 	arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
-	divLog.textContent = `リソース取得完了。タイトルコール実装済みアイドルは ${arIdolDatas.length} 人です。`;
+	divLog.textContent = `${msgFineFetch} ${arIdolDatas.length} ${msgFineFetch2}`;
 	//全スクリーン共通の配置準備
-	document.body.appendChild( divOutput = NEW_TAG("div") );
 	document.body.appendChild( divInput = NEW_TAG("div") );
 	divOutput.className = "quiz-output";
 	divInput.className = "quiz-input";
@@ -311,7 +317,7 @@ function setupTitleScreen(){
 	clearDivIO();
 	
 	const p = NEW_TAG("span");
-	p.textContent = "モード選択";
+	p.textContent = "モード選択(予定地)";
 	divOutput.appendChild(p);
 
 	const b = NEW_TAG("button");
@@ -341,7 +347,7 @@ function setupQuizScreen(){
 
 //出題(準備)する
 function makeQuiz(){
-	divOutput.firstChild.textContent = `第 ${++countQuiz} 問 / ${countCorrect}-${countWrong}`;
+	divOutput.firstChild.textContent = `第 ${++countQuiz} 問 / 正 ${countCorrect}-${countWrong} 誤`;
 	indexQuiz = (Math.random()*arIdolDatas.length)|0;
 	//ボタンを使用可能にする
 	HBEplay.funcChangeEnable(true);
