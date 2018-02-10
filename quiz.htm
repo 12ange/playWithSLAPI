@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,minimum-scale=1">
 <title>デレステタイトルコール当てクイズ</title>
 <style>
 
@@ -61,7 +62,7 @@ const gAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const gURL = window.URL || window.webkitURL; //URLも同様らしいのでそうしておく
 
 const msgPlzHoldOn = "⌛リソース取得中..."; //PLEASE HOLD ON
-const msgFineFetch = "✔リソース取得完了。タイトルコール実装済みアイドルは";
+const msgFineFetch = "✅️リソース取得完了。タイトルコール実装済みアイドルは";
 const msgFineFetch2 = "人です。";
 
 const hostStarlightDB = "https://starlight.kirara.ca/";
@@ -348,6 +349,7 @@ function setupQuizScreen(){
 //出題(準備)する
 function makeQuiz(){
 	divOutput.firstChild.textContent = `第 ${++countQuiz} 問 / 正 ${countCorrect}-${countWrong} 誤`;
+	// ○-×日本式, ✓-✗米国式
 	indexQuiz = (Math.random()*arIdolDatas.length)|0;
 	//ボタンを使用可能にする
 	HBEplay.funcChangeEnable(true);
