@@ -9,9 +9,12 @@
 /* 共通設定 */
 body{text-align:center}
 h1{margin:.5em 0}
-/* based on Fukol https://github.com/Heydon/fukol-grids */
-.inlfklgrid{display:inline-flex;flex-wrap:wrap;margin:-.5em}
-.inlfklgrid>*{flex:1 0 5em;margin:.5em}
+/* アイドル選択部 */
+.gridchoice{display:inline-flex;flex-wrap:wrap;max-height:70vh;overflow-y:scroll}
+label{cursor:pointer;margin:4px;padding:4px}
+input[type="checkbox"]{display:none}
+input[type="checkbox"]:checked+img{opacity:1}
+input[type="checkbox"]:not(checked)+img{opacity:.3}
 /* 属性色設定 */
 .imascg-cute{color:#e26; background-color:#fdd}
 .imascg-cool{color:#06f; background-color:#eef}
@@ -290,7 +293,7 @@ let objChoice = {};
 function init_objChoice(_aIdols){
 	//初期化処理
 	let d = NEW_TAG("div");
-	d.className = "inlfklgrid";
+	d.className = "gridchoice";
 	d.addEventListener("change",objChoice);
 	let g = [];
 	for( let i=0 ; i<_aIdols.length ; ++i ){
@@ -299,7 +302,10 @@ function init_objChoice(_aIdols){
 		c.type = "checkbox";
 		c.value = i;
 		g.push(c);
-		l.appendChild(_aIdols[i][tIdol.pNmIMGicon]);
+		const e = _aIdols[i][tIdol.pNmIMGicon];
+		e.width = e.naturalWidth/2;
+		e.height = e.naturalHeight/2; //IMGの大きさを元画像の半分に、直接変更
+		l.appendChild(e);
 	}
 	//変数＆関数登録
 	objChoice.aIdols = _aIdols; //参照元tIdol配列
@@ -362,17 +368,19 @@ function initScreenElements(){
 	HBEanswer.onclick = judgeAnswer;
 }
 
-//子ノードを全部外す
+//ノード配置のクリア
 function clearDivIO(){
 	const detach = (n)=>{ while(n.lastChild){ n.removeChild(n.lastChild); } };
+	const unparent = (n)=>{ if( n.parentNode ){ n.parentNode.removeChild(n); } };
 	detach(divOutput);
 	detach(divInput);
+	unparent(objChoice.container);
 }
 
 //タイトル画面構成
 function setupTitleScreen(){
 	clearDivIO();
-	
+
 	const p = NEW_TAG("span");
 	p.textContent = "モード選択(予定地)";
 	divOutput.appendChild(p);
@@ -391,11 +399,10 @@ function setupQuizScreen(){
 	const p = NEW_TAG("span");
 	divOutput.appendChild(p);
 	divOutput.appendChild( NEW_TAG("br") );
-
 	divOutput.appendChild(HBEplay);
 
-	divInput.appendChild(objChoice.container);
-	divInput.appendChild( NEW_TAG("br") );
+	divInput.parentNode.insertBefore(objChoice.container,divInput);
+
 	divInput.appendChild(HBEanswer);
 
 	countQuiz = countCorrect = countWrong = 0;
