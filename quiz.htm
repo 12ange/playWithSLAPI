@@ -185,6 +185,7 @@ class tIdolLoader {
 		} catch (e) {
 			//読み込めなかったらこのブロックに来てからfinallyブロックへ
 			console.log(e);
+			console.log(`cause of [${this.cid}] ${this.name} (cv. ${this.voice})`);
 		} finally {
 			_fnFinally( this );
 		}
@@ -255,7 +256,7 @@ function beforeFetch(){
 
 //リソース読み出し中処理
 function progressFetch(){
-	divLog.textContent = `${msgPlzHoldOn} x${arIdolDatas.length}+${arIdolLoaders.length}?`;
+	divLog.textContent = `${msgPlzHoldOn} ${ 100 * arIdolDatas.length / (arIdolDatas.length+arIdolLoaders.length) |0 }%`;
 }
 
 //リソース読み出し後処理
