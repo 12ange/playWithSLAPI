@@ -388,7 +388,11 @@ function setupTitleScreen(){
 
 	const b = NEW_TAG("button");
 	b.textContent = "START";
-	b.onclick = ()=>{ setupQuizScreen(); };
+	b.onclick = ()=>{
+		gAudioCtx.resume().then( setupQuizScreen );
+		//Chrome 66 以降、ページ読み込み時に生成されるAudioContextの初期が"suspend"に(＝いきなり音が鳴りださなくなる)
+		//その応手としてボタンクリックなどが行われたらresume().then(action)。こっちの方が行儀がいい。
+	};
 	divInput.appendChild(b);
 }
 
