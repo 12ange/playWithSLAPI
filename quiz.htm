@@ -9,9 +9,12 @@
 /* 共通設定 */
 body{text-align:center}
 h1{margin:.5em 0}
-/* Fukol https://github.com/Heydon/fukol-grids */
-.fukol-grid{display:flex;flex-wrap:wrap;margin:-.5em}
-.fukol-grid>*{flex:1 0 5em;margin:.5em}
+/* アイドル選択部 */
+.gridchoice{display:inline-flex;flex-wrap:wrap;max-height:70vh;overflow-y:scroll}
+label{cursor:pointer;margin:4px;padding:4px}
+input[type="checkbox"]{display:none}
+input[type="checkbox"]:checked+img{opacity:1}
+input[type="checkbox"]:not(checked)+img{opacity:.3}
 /* 属性色設定 */
 .imascg-cute{color:#e26; background-color:#fdd}
 .imascg-cool{color:#06f; background-color:#eef}
@@ -81,10 +84,10 @@ let divOutput = null;
 class tIdol {
 	//クラス用定数
 	static get pNmIMGicon(){ return "IMGicon"; }
-	static get pNmADtitleS(){ return "ADtitleS"; }
-	static get pNmADtitleU(){ return "ADtitleU"; }
-	static get pNmADnameD(){ return "ADnameD"; }
-	static get pNmADnameX(){ return "ADnameX"; }
+	static get pNmADtitleS(){ return "ADtitleS"; } //タイトルコール/ソロ用
+	static get pNmADtitleU(){ return "ADtitleU"; } //タイトルコール/ユニット用
+	static get pNmADnameD(){ return "ADnameD"; }   //名前＋です
+	static get pNmADnameX(){ return "ADnameX"; }   //名前(体言止め)
 
 	//**コンストラクタ**
 	constructor( _argobj ){
@@ -98,12 +101,22 @@ class tIdol {
 	}
 
 	//プロパティ名を指定して音声再生
-	playAudio( _pName, _dest, _timing ){
+	playAudio(
+		_pName = this.constructor.pNmADtitleS,
+		_dest = gAudioCtx.destination,
+		_timing = gAudioCtx.currentTime
+	){
 		let bfsrc = gAudioCtx.createBufferSource();
-		bfsrc.buffer = this[ _pName ? _pName : this.constructor.pNmADtitleS ];
-		bfsrc.connect( _dest ? _dest : gAudioCtx.destination );
-		bfsrc.start( _timing ? _timing : gAudioCtx.currentTime );
+		bfsrc.buffer = this[_pName];
+		bfsrc.connect(_dest);
+		bfsrc.start(_timing);
 		return true;
+	}
+
+	//プロパティ名を指定して音声長[秒]を取得
+	getDurationOf(_pName){
+		const tgtpnm = "duration";
+		return ( _pName in this && tgtpnm in this[_pName] )? this[_pName][tgtpnm] : 0;
 	}
 }
 
@@ -172,6 +185,7 @@ class tIdolLoader {
 		} catch (e) {
 			//読み込めなかったらこのブロックに来てからfinallyブロックへ
 			console.log(e);
+			console.log(`cause of [${this.cid}] ${this.name} (cv. ${this.voice})`);
 		} finally {
 			_fnFinally( this );
 		}
@@ -242,7 +256,7 @@ function beforeFetch(){
 
 //リソース読み出し中処理
 function progressFetch(){
-	divLog.textContent = `${msgPlzHoldOn} x${arIdolDatas.length}+${arIdolLoaders.length}?`;
+	divLog.textContent = `${msgPlzHoldOn} ${ 100 * arIdolDatas.length / (arIdolDatas.length+arIdolLoaders.length) |0 }%`;
 }
 
 //リソース読み出し後処理
@@ -266,28 +280,77 @@ window.addEventListener("load", ()=>{ beforeFetch(); asyncFetchResources(); } );
 //vvvvvvvv ここから本題 vvvvvvvv
 
 //クイズに使う値
-let indexQuiz;
+let indicesQuiz;
 let countQuiz;
 let countCorrect;
 let countWrong;
 //クイズに使うHTMLElement
-let HSEchoice; //HSE is <select>
 let HBEplay;   //HBE is <button>
 let HBEanswer;
 //TODO:オブジェクトでひとまとめに……する？
 
+//アイドル選択は one-and-only Object
+let objChoice = {};
+function init_objChoice(_aIdols){
+	//初期化処理
+	let d = NEW_TAG("div");
+	d.className = "gridchoice";
+	d.addEventListener("change",objChoice);
+	let g = [];
+	for( let i=0 ; i<_aIdols.length ; ++i ){
+		let l = d.appendChild( NEW_TAG("label") );
+		let c = l.appendChild( NEW_TAG("input") );
+		c.type = "checkbox";
+		c.value = i;
+		g.push(c);
+		const e = _aIdols[i][tIdol.pNmIMGicon];
+		e.width = e.naturalWidth/2;
+		e.height = e.naturalHeight/2; //IMGの大きさを元画像の半分に、直接変更
+		l.appendChild(e);
+	}
+	//変数＆関数登録
+	objChoice.aIdols = _aIdols; //参照元tIdol配列
+	objChoice.container = d;    //グリッドコンテナ
+	objChoice.checkboxes = g;   //チェックボックス配列
+	objChoice.needsChoice = 1;  //必要選択数(出題ごとに変わる可能性がある)
+	objChoice.choicedIdolIndices = [];
+	//[関数]解答欄準備
+	objChoice.ready = (_answers)=>{
+		objChoice.needsChoice = _answers;
+		for( const c of objChoice.checkboxes ){ c.checked = false; }
+		objChoice.choicedIdolIndices = [];
+	};
+	//[関数]イベント捕捉
+	objChoice.handleEvent = (ev)=>{
+		if(ev.type === "change"){
+			//choicedIdolIndicesの更新
+			if(ev.target.checked){
+				objChoice.choicedIdolIndices.push( parseInt(ev.target.value,10) );
+				//余分にcheckされたら古いものをuncheck
+				while( objChoice.choicedIdolIndices.length > objChoice.needsChoice ){
+					let x = objChoice.choicedIdolIndices.shift();
+					objChoice.checkboxes[x].checked = false;
+				}
+			}else{
+				let i = objChoice.choicedIdolIndices.indexOf( parseInt(ev.target.value,10) );
+				if( i >= 0 ){
+					objChoice.choicedIdolIndices.splice(i,1);
+				}
+			}
+		}
+	};
+};
+//使い方。
+//init_objChoice( arIdolDatas ) は initScreenElements で呼ばせる
+//解答欄のHTMLElementTreeは objChoice.container にある
+//問題準備ができたら objChoice.ready( 正解の配列.length ) で解答欄リセット
+//選ばれた数は objChoice.choicedIdolIndices.length
+//正誤判定は objChoice.choicedIdolIndices と正解の配列の内容物をcompare
+
 //以降の画面で使われるHTMLElement群の初期化
 function initScreenElements(){
-	//アイドル選択。本当はプルダウンじゃなくてアイコンタップにしたい
-	HSEchoice = NEW_TAG("select");
-	for (const d of arIdolDatas) {
-		const o = new Option( d.name, d.name );
-		o.className = "imascg-"+d.type;
-		HSEchoice.add( o );
-	}
-	HSEchoice.onchange = ()=>{
-		HSEchoice.className = HSEchoice.selectedOptions[0].className;
-	};
+	//アイドル選択。
+	init_objChoice(arIdolDatas);
 
 	//再生ボタン。
 	HBEplay = NEW_TAG("button");
@@ -306,24 +369,30 @@ function initScreenElements(){
 	HBEanswer.onclick = judgeAnswer;
 }
 
-//子ノードを全部外す
+//ノード配置のクリア
 function clearDivIO(){
 	const detach = (n)=>{ while(n.lastChild){ n.removeChild(n.lastChild); } };
+	const unparent = (n)=>{ if( n.parentNode ){ n.parentNode.removeChild(n); } };
 	detach(divOutput);
 	detach(divInput);
+	unparent(objChoice.container);
 }
 
 //タイトル画面構成
 function setupTitleScreen(){
 	clearDivIO();
-	
+
 	const p = NEW_TAG("span");
 	p.textContent = "モード選択(予定地)";
 	divOutput.appendChild(p);
 
 	const b = NEW_TAG("button");
 	b.textContent = "START";
-	b.onclick = ()=>{ setupQuizScreen(); };
+	b.onclick = ()=>{
+		gAudioCtx.resume().then( setupQuizScreen );
+		//Chrome 66 以降、ページ読み込み時に生成されるAudioContextの初期が"suspend"に(＝いきなり音が鳴りださなくなる)
+		//その応手としてボタンクリックなどが行われたらresume().then(action)。こっちの方が行儀がいい。
+	};
 	divInput.appendChild(b);
 }
 
@@ -335,11 +404,10 @@ function setupQuizScreen(){
 	const p = NEW_TAG("span");
 	divOutput.appendChild(p);
 	divOutput.appendChild( NEW_TAG("br") );
-
 	divOutput.appendChild(HBEplay);
 
-	divInput.appendChild(HSEchoice);
-	divInput.appendChild( NEW_TAG("br") );
+	divInput.parentNode.insertBefore(objChoice.container,divInput);
+
 	divInput.appendChild(HBEanswer);
 
 	countQuiz = countCorrect = countWrong = 0;
@@ -350,34 +418,79 @@ function setupQuizScreen(){
 function makeQuiz(){
 	divOutput.firstChild.textContent = `第 ${++countQuiz} 問 / 正 ${countCorrect}-${countWrong} 誤`;
 	// ○-×日本式, ✓-✗米国式
-	indexQuiz = (Math.random()*arIdolDatas.length)|0;
+	indicesQuiz = ( (_arr,_cnt)=>{
+		let r = [], k = [..._arr.keys()]; //キーすなわち添え字のイテレータ　をスプレッド演算子で全展開
+		while( r.length < _cnt ){ r.push( ...k.splice( (Math.random()*k.length)|0, 1 ) ); }
+		return r;
+	} )(arIdolDatas,1);
+
+	//解答欄準備
+	objChoice.ready(indicesQuiz.length);
 	//ボタンを使用可能にする
 	HBEplay.funcChangeEnable(true);
 	HBEanswer.funcChangeEnable(false);
 }
 
+//Promise版setTimeout(遅延時間[ms])
+function promiseSetTimeout(_delay){
+	return new Promise( (resolve,reject)=>{setTimeout(resolve,_delay);} );
+}
+
 //音声再生
 function playQuizSound(){
-	arIdolDatas[indexQuiz].playAudio(tIdol.pNmADtitleS);
+	//まとめて、同時に再生
+	let dst = gAudioCtx.destination;
+	let tim = gAudioCtx.currentTime;
+	let pnm = indicesQuiz.length === 1 ? tIdol.pNmADtitleS : tIdol.pNmADtitleU;
+	let dur = []; //音声の長さを取っておく
+	for(let i of indicesQuiz){
+		arIdolDatas[i].playAudio( pnm, dst, tim );
+		dur.push( arIdolDatas[i].getDurationOf(pnm) );
+	}
+
 	//ボタンを使用不能にする
 	HBEplay.funcChangeEnable(false);
-	HBEanswer.funcChangeEnable(true);
+	promiseSetTimeout( Math.max(...dur)*1e3 ).then(
+		()=>{HBEanswer.funcChangeEnable(true);} //再生終了時間を待ってから
+	);
 }
 
 //正誤判定
 function judgeAnswer(){
-	const bJudge = indexQuiz === HSEchoice.selectedIndex;
+	const bJudge = ((_x,_y)=>{
+		if(_x.length !== _y.length) return false;
+		for( let oy of _y ){ if( _x.indexOf(oy) < 0 ){ return false; } }
+		return true; //つまり、長さが同じで一方の全要素が他方にも含まれていれば真
+	})(indicesQuiz, objChoice.choicedIdolIndices);
+
 	bJudge ? ++countCorrect : ++countWrong ;
+
 	//本来は正誤表示を出し、待機して次の問題or前の画面へ
+	const idx2name = (_a)=>{
+		let r = "";
+		for( let c of _a ){
+			r += (r.length ? "," : "[") + arIdolDatas[c].name;
+		}
+		return r+"]";
+	};
 	console.log(
 		countQuiz+(bJudge
-			?"[O]"
-			:`[X]${arIdolDatas[HSEchoice.selectedIndex].name} ではなくて `
-		)+arIdolDatas[indexQuiz].name
+			?"[O] "
+			:`[X] ${idx2name(objChoice.choicedIdolIndices)} ではなくて `
+		)+idx2name(indicesQuiz)
 	);
+
 	//正解は誰だったかがわかるように。
-	arIdolDatas[indexQuiz].playAudio(tIdol.pNmADnameD);
-	makeQuiz();
+	let dst = gAudioCtx.destination;
+	let tim = gAudioCtx.currentTime;
+	let totaldur = 0;
+	for( let i=0 ; i<indicesQuiz.length; ++i ){
+		let o = indicesQuiz[i];
+		let p = (i+1 === indicesQuiz.length)? tIdol.pNmADnameD : tIdol.pNmADnameX; //最後のメンバのみ「～です」つき版にする
+		arIdolDatas[o].playAudio(p,dst,tim+totaldur);
+		totaldur+=arIdolDatas[o].getDurationOf(p);
+	}
+	promiseSetTimeout( totaldur*1e3 ).then( makeQuiz );
 }
 
 </script>
