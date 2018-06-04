@@ -184,8 +184,8 @@ class tIdolLoader {
 			this[tIdol.pNmADnameX] = await prmNameX;
 		} catch (e) {
 			//読み込めなかったらこのブロックに来てからfinallyブロックへ
-			console.log(e);
-			console.log(`cause of [${this.cid}] ${this.name} (cv. ${this.voice})`);
+			console.warn(e);
+			console.warn(`cause of [${this.cid}] ${this.name} (cv. ${this.voice})`);
 		} finally {
 			_fnFinally( this );
 		}
