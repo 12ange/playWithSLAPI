@@ -87,9 +87,10 @@ async function tellIMSPRQL(){
 	).set(
 		"schema","http://schema.org/"
 	);
-	const name = "nam", roundrank = "rnr"; //名前とそれを表すURI
-	imsprql.setSelect( "?"+name,"?"+roundrank );
-	imsprql.addWhereSPO(
+	const name = "nam", roundrank = "rnr", type ="typ";
+	imsprql.setSelect(
+		"?"+roundrank, "?"+name, "?"+type
+	).addWhereSPO(
 		"?"+roundrank, "rdf:type", "imas:CinderellaRankingResult"
 	).andPO(
 		"schema:member", "?uri"
@@ -97,37 +98,40 @@ async function tellIMSPRQL(){
 		"?uri", "rdf:type", "imas:Idol"
 	).andPO(
 		"schema:name", "?"+name
-	);
+	).andPO(
+		"imas:Type", "?"+type
+	); //回と順位を表すURI,名前,属性
 	let rq = await imsprql.execute(), //クエリ実行
 		mp = new Map(), //各回をまとめるMap
-		sn = new Set(); //名前一覧
+		mn = new Map(); //ランクインした名前一覧
 	for(const o of rq){
-		let [rd,rk] = o[roundrank].value.split("/").pop().split("_"); //round,rank
-		//回次は文字列のまま、Mapのkeyに利用する。順位も文字列のまま、二次ソートに利用する。
+		let [rd,rk] = o[roundrank].value.split("/").pop().split("_"); //URIを[round,rank]に分解
+		//回次はString型のまま、Mapのkeyに利用する。順位もString型のまま、二次ソートに利用する。
 		let mpva = mp.get(rd);
 		if(mpva === undefined){
-			mp.set( rd, [] );
+			mp.set( rd, [] ); //その回のデータがないので新規作成
 			mpva = mp.get(rd);
 		}
-		mpva.push( [rk, o[name].value] );
-		sn.add( o[name].value );
+		mpva.push( [rk, o[name].value] ); //当該回のデータに[順位,名前]追加
+		mn.set( o[name].value, o[type].value ); //名前と属性の組
 	}
 	//キーを外部でソートすることで開催順に取り出せる
 	let stky = Array.from(mp.keys()).sort();
 	for(const o of stky){
 		let a = mp.get(o);
-		a.sort();
+		a.sort(); //順位がString型なので、引数無しソートでOK
 		gRankingTable.push( a.map(x=>x[1]) ); //ソートしたので順位は不要
 	}
 	//今度は名前を基準に順位を出す
 	let len = gRankingTable.length;
-	for (const n of sn.values()) {
+	for (const n of mn.keys()) {
 		let a = new Array(len);
 		for(const i in gRankingTable){
 			a[i] = gRankingTable[i].indexOf(n)+1;
 		}
 		gIdolToRanks.set(n,a);
 	}
+	//TODO:ランクインした名前一覧をどこかに出力する。
 }
 
 //得点計算方法を生成する
