@@ -151,17 +151,7 @@ async function tellIMSPRQL(){
 	}
 	//ランクインした名前一覧を出力する
 	for (const [k,v] of mpnames.entries()) {
-		let t;
-		if( /^cu/i.test(v) ){
-			t = "cute";
-		}else if( /^co/i.test(v) ){
-			t = "cool";
-		}else if( /^pa/i.test(v) ){
-			t = "passion";
-		}else{
-			t = "office";
-		}
-		gIdolDatabase.mergeKeyObj(k, {"type":t} );
+		gIdolDatabase.mergeKeyObj(k, {"type":v} );
 	}
 }
 
@@ -220,6 +210,7 @@ function updateTableWithMap( mapIdolPoints ){
 	//arrtbdを反映
 	GET_ID("tblttl").textContent = "総選挙結果得点表";
 
+	//ヘッダ部更新
 	clearTableSection(tblhdr);
 	tr = tblhdr.insertRow(-1);
 	tr.insertCell(0).textContent = "位";
@@ -229,10 +220,16 @@ function updateTableWithMap( mapIdolPoints ){
 	}
 	tr.insertCell(-1).textContent = "合計点";
 
+	//本体部更新
 	clearTableSection(tblbdy);
 	for(const a of arrtbd){
 		tr = tblbdy.insertRow(-1);
-		tr.className = "imascg-"+gIdolDatabase.get(a[1])["type"];
+		tr.className = "imascg-"+(t=>{
+			if( /^cu/i.test(t) ){return "cute";}
+			else if( /^co/i.test(t) ){return "cool";}
+			else if( /^pa/i.test(t) ){return "passion";}
+			else{return "notidol";}
+		})(gIdolDatabase.get(a[1])["type"]);
 		for(const o of a){
 			const td = tr.insertCell(-1);
 			td.textContent = o;
