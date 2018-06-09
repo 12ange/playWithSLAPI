@@ -41,7 +41,7 @@ td{ padding: 2px }
 const NEW_TAG = (tag) => document.createElement(tag);
 const GET_ID = (id) => document.getElementById(id);
 
-let gRankingSizes,
+let gRankingSizes = [],
 	gIdolToRanks = new Map(),
 	gIdolDatabase = new Map();
 
@@ -115,30 +115,31 @@ async function tellIMSPRQL(){
 	).andPO(
 		"imas:Type", "?"+type
 	); //回と順位を表すURI,名前,属性
-	let rq = await imsprql.execute(), //クエリ実行
+	let reqry = await imsprql.execute(), //********クエリ実行********
 		mprounds = new Map(), //各回をまとめるMap
 		mpnames = new Map(); //ランクインした名前一覧
-	for(const o of rq){
+	for(const o of reqry){
 		let [rnd,rnk] = o[roundrank].value.split("/").pop().split("_"); //URIを[round,rank]に分解
 		//回次はString型のまま、Mapのkeyに利用する。順位もString型のまま、二次ソートに利用する。
 		let v = mprounds.get(rnd);
 		if(v === undefined){
-			mprounds.set( rnd, [] ); //その回のデータがないので新規作成
-			v = mprounds.get(rnd);
+			v = mprounds.set(rnd,new Map()).get(rnd); //その回のデータがないので新規作成
 		}
-		v.push( [rnk, o[name].value] ); //当該回のデータに[順位,名前]追加
+		v.set( rnk, o[name].value ); //当該回のデータに[順位,名前]追加
 		mpnames.set( o[name].value, o[type].value ); //名前と属性の組
 	}
-	//キーを外部でソートすることで開催順に取り出せる
-	let stky = Array.from(mprounds.keys()).sort();
 	//各回の順位ソート済み名前を得る、とともに各回の圏内人数も得る
-	let arrnkbyname = [];
-	gRankingSizes = [];
-	for(const o of stky){
-		let a = mprounds.get(o);
-		a.sort(); //順位がString型なので、引数無しソートでOK
-		arrnkbyname.push( a.map(x=>x[1]) ); //ソートしたので順位は不要
-		gRankingSizes.push( a.length );
+	let arrnkbyname = [],
+		ks_rnd = Array.from(mprounds.keys()).sort(); //キーを外部でソートすることで開催順に取り出せる
+	for(const krd of ks_rnd){
+		let arrnk1 = []; //1回順位表
+		const mp_rnk = mprounds.get(krd);
+		const ks_rnk = Array.from(mp_rnk.keys()).sort();
+		for(const krk of ks_rnk){
+			arrnk1.push(mp_rnk.get(krk)); //ソート済みkeyの順に従ってvalue=名前を収める
+		}
+		arrnkbyname.push( arrnk1 );
+		gRankingSizes.push( mp_rnk.size );
 	}
 	//今度は名前を基準に順位を出す
 	let len = arrnkbyname.length;
@@ -252,14 +253,21 @@ function setupPointsStanding(){
 }
 
 (()=>{
+	//const tmBegin = Date.now();
+	const prom1 = tellIMSPRQL().then( ()=>{
+		//Im@sparqlからの返答だけでできること
+		let x = buildPointTable();
+		applyPtSysTbl( x );
+		//console.log("prom1="+(Date.now()-tmBegin));
+	} );
 	Promise.all( [
-		tellSLDB(), tellIMSPRQL(), setupEditZone(), setupPointsStanding()
+		tellSLDB(), prom1, setupEditZone(), setupPointsStanding()
 	] ).then( ()=>{
+		//SLDBの返答も必要なこと
 		//console.log( arrnkbyname );
 		//console.log( gIdolToRanks );
 		//console.log( gIdolDatabase );
-		let x = buildPointTable();
-		applyPtSysTbl( x );
+		//console.log("promA="+(Date.now()-tmBegin));
 	} );
 })();
 </script>
