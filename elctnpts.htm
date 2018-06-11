@@ -16,6 +16,9 @@ td{ padding: 2px }
 
 #tblbdy>tr>td{ border-bottom:1px solid black; }
 #tblbdy>tr>td.numcel{ text-align: right; }
+#tblbdy>tr>td.imgcel{ font-weight: bold; }
+#tblbdy>tr>td.imgcel>* { vertical-align:top; }
+#tblbdy>tr>td.imgcel>img{ max-width: 1.5em; max-height: 1.5em; margin-right: .3em; }
 
 </style>
 </head>
@@ -38,8 +41,8 @@ td{ padding: 2px }
 <script src="./imsprql.js"></script>
 <script>
 "use strict";
-const NEW_TAG = (tag) => document.createElement(tag);
-const GET_ID = (id) => document.getElementById(id);
+const NEW_TAG = tag => document.createElement(tag);
+const GET_ID = id => document.getElementById(id);
 
 let gRankingSizes = [],
 	gIdolToRanks = new Map(),
@@ -233,9 +236,12 @@ function updateTableWithMap( mapIdolPoints ){
 		})(gIdolDatabase.get(a[1])["type"]);
 		for(const o of a){
 			const td = tr.insertCell(-1);
-			td.textContent = o;
 			if( typeof o === "number" ){
 				td.className = "numcel";
+				td.textContent = o;
+			}else{
+				td.className = "imgcel";
+				td.innerHTML = `<span>${o}</span>`;
 			}
 		}
 	}
@@ -248,8 +254,17 @@ function setupEditZone(){
 	fldttl.nextElementSibling.textContent = "作成中…………現時点では(1+圏内人数-順位)点を与えています。";
 }
 
-//得点表示部
-function setupPointsStanding(){
+//得点表示部の名前の前に画像を追加
+function addIconBeforeName(){
+	const tds_name = document.getElementsByClassName("imgcel");
+	for(const td of tds_name){
+		const rcd = gIdolDatabase.get(td.textContent);
+		if(rcd !== undefined){
+			const img = NEW_TAG("img");
+			img.src = rcd["src"], img.alt = rcd["alt"];
+			td.insertBefore(img,td.firstChild);
+		}
+	}
 }
 
 (()=>{
@@ -261,12 +276,10 @@ function setupPointsStanding(){
 		//console.log("prom1="+(Date.now()-tmBegin));
 	} );
 	Promise.all( [
-		tellSLDB(), prom1, setupEditZone(), setupPointsStanding()
+		tellSLDB(), prom1, setupEditZone()
 	] ).then( ()=>{
 		//SLDBの返答も必要なこと
-		//console.log( arrnkbyname );
-		//console.log( gIdolToRanks );
-		//console.log( gIdolDatabase );
+		addIconBeforeName();
 		//console.log("promA="+(Date.now()-tmBegin));
 	} );
 })();
