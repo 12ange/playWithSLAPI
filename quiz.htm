@@ -11,7 +11,7 @@ body{text-align:center}
 h1{margin:.5em 0}
 /* アイドル選択部 */
 .gridchoice{display:inline-flex;flex-wrap:wrap;max-height:70vh;overflow-y:scroll}
-label{cursor:pointer;margin:4px;padding:4px}
+label{cursor:pointer;margin:4px 3px;padding:0 4px}
 input[type="checkbox"]{display:none}
 input[type="checkbox"]:checked+img{opacity:1}
 input[type="checkbox"]:not(checked)+img{opacity:.3}
@@ -211,7 +211,25 @@ async function asyncFetchResources() {
 	let arrslt = await asyncFetchAndStrip(urlFirstRequest);
 	//最初の結果を利用して次に呼び出すURLを構築
 	let strCharIds = "";
-	for( const s of arrslt ){ strCharIds += (strCharIds.length>0 ? `,${s["chara_id"]}` : s["chara_id"]); }
+	for( const s of arrslt ){
+		let cid = s["chara_id"];
+		switch (cid) {
+			case 20: //18-20はちひろさん版おねシン(2016)
+			case 18:
+			case 19:
+			case 48: //48-50はぷちニュージェネ版ビヨスタ(2017)
+			case 49:
+			case 50:
+			case 86: //83,86-87はきらりんロボのテーマ(2018)
+			case 87:
+			case 83:
+				/*** 以上の四月馬鹿用IDは要求から除外 ***/
+				break;
+			default:
+				strCharIds += (strCharIds.length>0 ? "," : "")+cid;
+				break;
+		}
+	}
 	let secondRequestURL = new gURL(pathCharDetail+strCharIds, urlFirstRequest);
 	arrslt = await asyncFetchAndStrip(secondRequestURL);
 
@@ -304,8 +322,7 @@ function init_objChoice(_aIdols){
 		c.value = i;
 		g.push(c);
 		const e = _aIdols[i][tIdol.pNmIMGicon];
-		e.width = e.naturalWidth/2;
-		e.height = e.naturalHeight/2; //IMGの大きさを元画像の半分に、直接変更
+		e.width = e.height = 50; //IMGの大きさを50[px]に、直接変更
 		l.appendChild(e);
 	}
 	//変数＆関数登録
