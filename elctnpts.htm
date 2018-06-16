@@ -16,6 +16,9 @@ td{ padding: 2px }
 
 #tblbdy>tr>td{ border-bottom:1px solid black; }
 #tblbdy>tr>td.numcel{ text-align: right; }
+#tblbdy>tr>td.imgcel{ font-weight: bold; }
+#tblbdy>tr>td.imgcel>* { vertical-align:top; }
+#tblbdy>tr>td.imgcel>img{ max-width: 1.5em; max-height: 1.5em; margin-right: .3em; }
 
 </style>
 </head>
@@ -38,13 +41,27 @@ td{ padding: 2px }
 <script src="./imsprql.js"></script>
 <script>
 "use strict";
-const NEW_TAG = (tag) => document.createElement(tag);
-const GET_ID = (id) => document.getElementById(id);
+const NEW_TAG = tag => document.createElement(tag);
+const GET_ID = id => document.getElementById(id);
 
-let gRankingTable = [],
-	gPointTable = [],
+let gRankingSizes = [],
 	gIdolToRanks = new Map(),
-	gIdolSLDB = new Map();
+	gIdolDatabase = new Map();
+
+//オブジェクトを合成する専用関数:set()の代わりに使う
+gIdolDatabase.mergeKeyObj = function(key,obj){
+	const vpr = this.get(key); //value-of-previous/present
+	if( vpr === undefined ){
+		return this.set(key,obj);
+	}else{
+		for( const i in obj ){
+			//console.log(`${key}, ${obj[i]} => ${vpr[i]}`);
+			vpr[i] = obj[i];
+		}
+		return this;
+	}
+};
+
 //-------------------------------
 // Starlight Database とやり取り
 //-------------------------------
@@ -73,7 +90,7 @@ async function tellSLDB(){
 		p["src"] = new sldb.URL( o["icon_image_ref"], baseurl ).href; //ファイル名
 		p["alt"] = o["name"] + (o["voice"].length>0 ? ` (cv. ${o["voice"]})` : "");
 		p["type"] = o["type"];
-		gIdolSLDB.set(o["name"],p);
+		gIdolDatabase.mergeKeyObj(o["name"],p);
 	}
 }
 //----------------------
@@ -87,9 +104,10 @@ async function tellIMSPRQL(){
 	).set(
 		"schema","http://schema.org/"
 	);
-	const name = "nam", roundrank = "rnr"; //名前とそれを表すURI
-	imsprql.setSelect( "?"+name,"?"+roundrank );
-	imsprql.addWhereSPO(
+	const name = "nam", roundrank = "rnr", type ="typ";
+	imsprql.setSelect(
+		"?"+roundrank, "?"+name, "?"+type
+	).addWhereSPO(
 		"?"+roundrank, "rdf:type", "imas:CinderellaRankingResult"
 	).andPO(
 		"schema:member", "?uri"
@@ -97,36 +115,45 @@ async function tellIMSPRQL(){
 		"?uri", "rdf:type", "imas:Idol"
 	).andPO(
 		"schema:name", "?"+name
-	);
-	let rq = await imsprql.execute(), //クエリ実行
-		mp = new Map(), //各回をまとめるMap
-		sn = new Set(); //名前一覧
-	for(const o of rq){
-		let [rd,rk] = o[roundrank].value.split("/").pop().split("_"); //round,rank
-		//回次は文字列のまま、Mapのkeyに利用する。順位も文字列のまま、二次ソートに利用する。
-		let mpva = mp.get(rd);
-		if(mpva === undefined){
-			mp.set( rd, [] );
-			mpva = mp.get(rd);
+	).andPO(
+		"imas:Type", "?"+type
+	); //回と順位を表すURI,名前,属性
+	let reqry = await imsprql.execute(), //********クエリ実行********
+		mprounds = new Map(), //各回をまとめるMap
+		mpnames = new Map(); //ランクインした名前一覧
+	for(const o of reqry){
+		let [rnd,rnk] = o[roundrank].value.split("/").pop().split("_"); //URIを[round,rank]に分解
+		//回次はString型のまま、Mapのkeyに利用する。順位もString型のまま、二次ソートに利用する。
+		let v = mprounds.get(rnd);
+		if(v === undefined){
+			v = mprounds.set(rnd,new Map()).get(rnd); //その回のデータがないので新規作成
 		}
-		mpva.push( [rk, o[name].value] );
-		sn.add( o[name].value );
+		v.set( rnk, o[name].value ); //当該回のデータに[順位,名前]追加
+		mpnames.set( o[name].value, o[type].value ); //名前と属性の組
 	}
-	//キーを外部でソートすることで開催順に取り出せる
-	let stky = Array.from(mp.keys()).sort();
-	for(const o of stky){
-		let a = mp.get(o);
-		a.sort();
-		gRankingTable.push( a.map(x=>x[1]) ); //ソートしたので順位は不要
+	//各回の順位ソート済み名前を得る、とともに各回の圏内人数も得る
+	let arrnkbyname = [];
+	//キーを外部でソートすることで開催順に取り出せる↓↓。両方同じ。
+	for(const krd of Array.from(mprounds.keys()).sort()){
+		let arrnk1 = []; //1回順位表
+		const mp_rnk = mprounds.get(krd);
+		for(const krk of Array.from(mp_rnk.keys()).sort()){
+			arrnk1.push(mp_rnk.get(krk)); //ソート済みkeyの順に従ってvalue=名前を収める
+		}
+		arrnkbyname.push( arrnk1 );
+		gRankingSizes.push( mp_rnk.size );
 	}
 	//今度は名前を基準に順位を出す
-	let len = gRankingTable.length;
-	for (const n of sn.values()) {
-		let a = new Array(len);
-		for(const i in gRankingTable){
-			a[i] = gRankingTable[i].indexOf(n)+1;
+	for (const n of mpnames.keys()) {
+		let a = new Array(arrnkbyname.length);
+		for(const i in arrnkbyname){
+			a[i] = arrnkbyname[i].indexOf(n)+1; //見つからない時に-1が返るのを利用
 		}
 		gIdolToRanks.set(n,a);
+	}
+	//ランクインした名前一覧を出力する
+	for (const [k,v] of mpnames.entries()) {
+		gIdolDatabase.mergeKeyObj(k, {"type":v} );
 	}
 }
 
@@ -141,21 +168,22 @@ function createPointSystem( size, setStr="" ){
 
 //得点表を組み立てる
 function buildPointTable(){
-	gPointTable = [];
-	for(let i=0; i<gRankingTable.length; i++){
-		gPointTable.push( createPointSystem(gRankingTable[i].length) );
+	let pt = [];
+	for(const sz of gRankingSizes){
+		pt.push( createPointSystem(sz) );
 	}
+	return pt;
 }
 
 //得点計算をアイドルに反映
-function applyPtSysTbl(){
+function applyPtSysTbl( pointtable ){
 	//マップする
-	const nrd = gRankingTable.length; //催行回数
+	const nrd = gRankingSizes.length; //催行回数
 	let mappt = new Map();
 	for (const [name,ranks] of gIdolToRanks.entries()) {
 		let arpt = []; //各回得点配列
 		for(let i=0; i<nrd; i++){
-			let pt = ranks[i]===0 ? 0 : gPointTable[i][ranks[i]-1]; //ranks[i]が当回の順位
+			let pt = ranks[i]===0 ? 0 : pointtable[i][ranks[i]-1]; //ranks[i]が当回の順位
 			arpt.push( pt );
 		}
 		mappt.set( name, arpt );
@@ -184,24 +212,34 @@ function updateTableWithMap( mapIdolPoints ){
 	//arrtbdを反映
 	GET_ID("tblttl").textContent = "総選挙結果得点表";
 
+	//ヘッダ部更新
 	clearTableSection(tblhdr);
 	tr = tblhdr.insertRow(-1);
 	tr.insertCell(0).textContent = "位";
 	tr.insertCell(1).textContent = "名前";
-	for(let i=1; i<=gRankingTable.length; i++){
+	for(let i=1; i<=gRankingSizes.length; i++){
 		tr.insertCell(-1).textContent = `第${i}回`;
 	}
 	tr.insertCell(-1).textContent = "合計点";
 
+	//本体部更新
 	clearTableSection(tblbdy);
 	for(const a of arrtbd){
 		tr = tblbdy.insertRow(-1);
-		tr.className = "imascg-"+gIdolSLDB.get(a[1])["type"];
+		tr.className = "imascg-"+(t=>{
+			if( /^cu/i.test(t) ){return "cute";}
+			else if( /^co/i.test(t) ){return "cool";}
+			else if( /^pa/i.test(t) ){return "passion";}
+			else{return "notidol";}
+		})(gIdolDatabase.get(a[1])["type"]);
 		for(const o of a){
 			const td = tr.insertCell(-1);
-			td.textContent = o;
 			if( typeof o === "number" ){
 				td.className = "numcel";
+				td.textContent = o;
+			}else{
+				td.className = "imgcel";
+				td.innerHTML = `<span>${o}</span>`;
 			}
 		}
 	}
@@ -214,19 +252,33 @@ function setupEditZone(){
 	fldttl.nextElementSibling.textContent = "作成中…………現時点では(1+圏内人数-順位)点を与えています。";
 }
 
-//得点表示部
-function setupPointsStanding(){
+//得点表示部の名前の前に画像を追加
+function addIconBeforeName(){
+	const tds_name = document.getElementsByClassName("imgcel");
+	for(const td of tds_name){
+		const rcd = gIdolDatabase.get(td.textContent);
+		if(rcd !== undefined){
+			const img = NEW_TAG("img");
+			img.src = rcd["src"], img.alt = rcd["alt"];
+			td.insertBefore(img,td.firstChild);
+		}
+	}
 }
 
 (()=>{
+	//const tmBegin = Date.now();
+	const prom1 = tellIMSPRQL().then( ()=>{
+		//Im@sparqlからの返答だけでできること
+		let x = buildPointTable();
+		applyPtSysTbl( x );
+		//console.log("prom1="+(Date.now()-tmBegin));
+	} );
 	Promise.all( [
-		tellSLDB(), tellIMSPRQL(), setupEditZone(), setupPointsStanding()
+		tellSLDB(), prom1, setupEditZone()
 	] ).then( ()=>{
-		//console.log( gRankingTable );
-		//console.log( gIdolToRanks );
-		//console.log( gIdolSLDB );
-		buildPointTable();
-		applyPtSysTbl();
+		//SLDBの返答も必要なこと
+		addIconBeforeName();
+		//console.log("promA="+(Date.now()-tmBegin));
 	} );
 })();
 </script>

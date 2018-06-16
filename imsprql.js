@@ -1,6 +1,8 @@
 /*
 im@sparql <https://sparql.crssnky.xyz/imas/> へのアクセスを補助するオブジェクト
 ファイルを読み込み、解析されたら生成されている。
+{setSelect,addWhereSPO,andPO,clearWholeQuery}関数はdot-chain可能
+想定は、clearWholeQuery.setSelect.(addWhereSPO.(andPO)*)+.(setFilter)?
 */
 var imsprql = imsprql || {
 	prefixes : new Map(), //接頭辞の設定はこれを直接操作すればOK
@@ -19,7 +21,6 @@ var imsprql = imsprql || {
 	clearSelect(){ this.__selectNames.clear(); },
 
 	//WHEREの全削除・列追加・主語固定追加 //Subject主語;Predicate述語;Object目的語
-	clearWhere(){ this.__whereTriples.clear(); },
 	addWhereSPO(su,pr,ob){
 		this.__lastsub = su;
 		this.__whereTriples.add( [su,pr,ob] );
@@ -29,15 +30,23 @@ var imsprql = imsprql || {
 		this.addWhereSPO(this.__lastsub,pr,ob);
 		return this;
 	},
+	clearWhere(){ this.__whereTriples.clear(); },
 
 	//FILTERの設定・削除
 	setFilter(str){ this.__filterString = ""+str; },
 	clearFilter(){ this.__filterString = ""; },
 
+	clearWholeQuery(){
+		this.clearSelect();
+		this.clearWhere();
+		this.clearFilter();
+		return this;
+	},
+
 	//(非同期)クエリ実行
 	async execute(){
 		//組み立てて
-		let k, v, qPrefix = "";
+		let k, v, qPrefix = "", retobj = null;
 		for( [k,v] of this.prefixes.entries() ){
 			qPrefix += `PREFIX ${k}: <${v}> `;
 		}
@@ -58,11 +67,10 @@ var imsprql = imsprql || {
 		try {
 			k = await fetch( url );
 			v = await k.json();
+			retobj = v["results"]["bindings"]; //返信を成型してreturn
 		} catch (e) {
 			console.error(e+" <"+url+">");
-			return null;
 		}
-		//返信を成型してreturn
-		return v["results"]["bindings"];
+		return retobj;
 	}
 };
