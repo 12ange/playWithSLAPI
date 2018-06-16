@@ -132,22 +132,20 @@ async function tellIMSPRQL(){
 		mpnames.set( o[name].value, o[type].value ); //名前と属性の組
 	}
 	//各回の順位ソート済み名前を得る、とともに各回の圏内人数も得る
-	let arrnkbyname = [],
-		ks_rnd = Array.from(mprounds.keys()).sort(); //キーを外部でソートすることで開催順に取り出せる
-	for(const krd of ks_rnd){
+	let arrnkbyname = [];
+	//キーを外部でソートすることで開催順に取り出せる↓↓。両方同じ。
+	for(const krd of Array.from(mprounds.keys()).sort()){
 		let arrnk1 = []; //1回順位表
 		const mp_rnk = mprounds.get(krd);
-		const ks_rnk = Array.from(mp_rnk.keys()).sort();
-		for(const krk of ks_rnk){
+		for(const krk of Array.from(mp_rnk.keys()).sort()){
 			arrnk1.push(mp_rnk.get(krk)); //ソート済みkeyの順に従ってvalue=名前を収める
 		}
 		arrnkbyname.push( arrnk1 );
 		gRankingSizes.push( mp_rnk.size );
 	}
 	//今度は名前を基準に順位を出す
-	let len = arrnkbyname.length;
 	for (const n of mpnames.keys()) {
-		let a = new Array(len);
+		let a = new Array(arrnkbyname.length);
 		for(const i in arrnkbyname){
 			a[i] = arrnkbyname[i].indexOf(n)+1; //見つからない時に-1が返るのを利用
 		}
