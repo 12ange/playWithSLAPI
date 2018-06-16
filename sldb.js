@@ -6,7 +6,14 @@ Starlight Database < https://starlight.kirara.ca/ > へのアクセスを補助�
 	[非同期]通常接続
 .connectTo( ホスト(protocol://domain 形式) )
 	[非同期]接続先強制指定接続
-.requestPath( _path )
+.hostConnected
+	[プロパティ]成功した接続先
+.isConnected
+	[プロパティ]接続成功フラグ
+.listChar
+	[プロパティ]キャラクタリスト：接続されたならここから取得できる(キャッシュされている)
+.request(Char|Card)Detail( ...IDの羅列 )
+	[非同期]詳細情報の取得
 */
 var sldb = sldb || {
 	URL : window.URL || window.webkitURL,
@@ -62,26 +69,26 @@ var sldb = sldb || {
 			b = o.hasOwnProperty(this.__pnameOK);
 			if( b ){
 				d = o[this.__pnameOK];
-			}else if( o.hasOwnProperty(this.__pnameNG) ){ //success fetch with error message
+			}else if( o.hasOwnProperty(this.__pnameNG) ){ //通信成功・エラーメッセージ取得のパターン
 				d = o[this.__pnameNG];
 			}else{
 				d = "unknown error";
 			}
 		} catch (e) {
 			b = false;
-			d = e;			
+			d = e;
 		}
 		return [b,d];
 	},
 	//接続できている？
 	get hostConnected(){ return this.__hostConnected; },
-	get isConnected(){ return this.__hostConnected !== ""; },
+	get isConnected(){ return this.hostConnected !== ""; },
 	//接続に成功した場合の基底データ
-	get listChar(){ return this.isConnected ? this.__listChar : [] ; },
+	get listChar(){ return this.isConnected ? this.__listChar : null ; },
 
 	//要求
 	async __requestPath( _path ){
-		if( !this.isConnected ){ return null; }
+		if( !this.isConnected ){ return [false,undefined]; }
 		return await this.fetchAndStrip( new this.URL( _path,this.hostConnected ) );
 	},
 	async requestCharDetail(...ids){
