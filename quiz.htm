@@ -76,7 +76,7 @@ const urlVirtualRequest = new gURL( pathCharDetail, hostStarlightDB );
 
 //コンプレッサー作成とAudioContextへ接続
 const gAudioCompNode = (c=>{
-	n = c.createDynamicsCompressor();
+	let n = c.createDynamicsCompressor();
 	n.connect(c.destination);
 	return n;
 })(gAudioCtx);
