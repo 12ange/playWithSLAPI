@@ -4,11 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,minimum-scale=1">
 <title>総選挙結果で得点付与してポイントランキング</title>
+<link rel="stylesheet" type="text/css" href="imascgss.css">
 <style>
-
-.imascg-cute{color:#e26; background-color:#fdd}
-.imascg-cool{color:#06f; background-color:#eef}
-.imascg-passion{color:#c80; background-color:#feb}
 
 td{ padding: 2px }
 
@@ -226,7 +223,7 @@ function updateTableWithMap( mapIdolPoints ){
 	clearTableSection(tblbdy);
 	for(const a of arrtbd){
 		tr = tblbdy.insertRow(-1);
-		tr.className = "imascg-"+(t=>{
+		tr.className = "imascgss "+(t=>{
 			if( /^cu/i.test(t) ){return "cute";}
 			else if( /^co/i.test(t) ){return "cool";}
 			else if( /^pa/i.test(t) ){return "passion";}
