@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,minimum-scale=1">
 <title>デレステタイトルコール当てクイズ</title>
+<link rel="stylesheet" type="text/css" href="imascg.css">
 <style>
 
 /* 共通設定 */
@@ -15,42 +16,10 @@ label{cursor:pointer;margin:4px 3px;padding:0 4px}
 input[type="checkbox"]{display:none}
 input[type="checkbox"]:checked+img{opacity:1}
 input[type="checkbox"]:not(checked)+img{opacity:.3}
-/* 属性色設定 https://www.kanzaki.com/docs/html/color-check の輝度比を参考に */
-.imascg-cute{color:#d06; background-color:#ffe7ee} /*0.16331:0.84585=4.2*/
-.imascg-cool{color:#06f; background-color:#e7eeff} /*0.16723:0.85358=4.16*/
-.imascg-passion{color:#960; background-color:#feb} /*0.16275:0.85997=4.277*/
 /*その他、実験用*/
 .quiz-log{color:silver}
 .quiz-input{border:1px dashed green;margin:.3em;padding:.2em}
 .quiz-output{border:1px dotted cyan;margin:.3em;padding:.2em}
-
-/* animation (testing)*/
-@keyframes sparkle-borderColor {
-    0% { border-color:#999 }
-    1% { border-color:#ccc }
-    12% { border-color:#bbb }
-    34% { border-color:#aaa }
-    100% { border-color:#999 }
-}
-button {
-    background-color: transparent;
-    border:6px solid #999;
-    border-radius: 16px;
-    padding:10px;
-}
-button:enabled {
-    animation: sparkle-borderColor 2s linear infinite both;
-}
-button:enabled:active { /* while down */
-    border-style: inset;
-}
-button:enabled:focus {
-    border-color: #3f6;
-    animation-name:none
-}
-button:enabled:hover {
-    background-color: #3f6;
-}
 
 </style></head><body><script>
 
@@ -190,6 +159,8 @@ class tIdolLoader {
 			this[tIdol.pNmADnameX] = await prmNameX;
 		} catch (e) {
 			//読み込めなかったらこのブロックに来てからfinallyブロックへ
+			//404以外に、CDN由来の52x,530エラーがある。
+			//対応的には、4xx:再挑戦不可 52[02457]:自動再挑戦可能 52[136]|530:今は諦める(手動再挑戦)
 			console.warn(e);
 			console.warn(`cause of [${this.cid}] ${this.name} (cv. ${this.voice})`);
 		} finally {
@@ -374,7 +345,7 @@ function init_objChoice(_aIdols){
 				}
 			}
 			HSEanswer.textContent = idx2name(...objChoice.choicedIdolIndices); //選択情報更新
-			HSEanswer.className = objChoice.choicedIdolIndices.length ? ("imascg-"+arIdolDatas[objChoice.choicedIdolIndices[0]].type) : "";
+			HSEanswer.className = objChoice.choicedIdolIndices.length ? ("imascgss "+arIdolDatas[objChoice.choicedIdolIndices[0]].type) : "";
 		} //ev.type="change"
 	};
 };
@@ -392,6 +363,7 @@ function initScreenElements(){
 
 	//再生ボタン。
 	HBEplay = NEW_TAG("button");
+	HBEplay.className = "imascgss";
 	HBEplay.funcChangeEnable = (b)=>{
 		HBEplay.disabled = !b;
 		HBEplay.textContent = b ? "PLAY" : ">>>>";
@@ -400,6 +372,7 @@ function initScreenElements(){
 
 	//回答ボタン。
 	HBEanswer = NEW_TAG("button");
+	HBEanswer.className = "imascgss";
 	HBEanswer.funcChangeEnable = (b)=>{
 		HBEanswer.disabled = !b;
 		HBEanswer.textContent = b ? "ANSWER" : "------";
@@ -429,6 +402,7 @@ function setupTitleScreen(){
 	divOutput.appendChild(p);
 
 	const b = NEW_TAG("button");
+	b.className = "imascgss";
 	b.textContent = "START";
 	b.onclick = ()=>{
 		gAudioCtx.resume().then( setupQuizScreen );
