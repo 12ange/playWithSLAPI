@@ -2,31 +2,32 @@
 
 /* ボタンは共通デザイン */
 button.imascgss{
-	animation: unset;
-	background-color: #fff;
-	background-image: linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.1));
-	border: 1px solid #000;
-	border-radius: 4px;
+	background-color:#fff;
+	background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.1));
+	border:1px solid #000;
+	border-radius:4px;
 	color:#000;
-	font-weight: bold;
-	font-size: 16px;
-	min-width: 100px;
-	padding: .5em 0;
-	box-shadow: 0 4px #000;
-}
-button.imascgss:active{
-	transform: translateY(4px);
-	box-shadow: none;
+	cursor:pointer;
+	font-weight:bold;
+	font-size:16px;
+	min-width:100px;
+	padding:.5em 0;
+	box-shadow:0 4px #000;
 }
 button.imascgss.strong{
 	background-color: #f7d;
 	color:#fff;
-	text-shadow: -1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
+	text-shadow:-1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
+}
+button.imascgss:active{ /* while down */
+	transform:translateY(4px);
+	box-shadow:none;
 }
 button.imascgss:disabled{
-	background-color: gray;
+	background-color:gray;
 	color:#fff;
-	text-shadow: -1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
+	cursor:auto;
+	text-shadow:-1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
 }
 
 /* 属性色設定。明暗反転は、反転表現属性文字列で指定。
