@@ -4,23 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,minimum-scale=1">
 <title>総選挙結果で得点付与してポイントランキング</title>
+<script async src="./sldb.js"></script>
+<script async src="./imsprql.js"></script>
 <link rel="stylesheet" type="text/css" href="imascgss.css">
 <style>
 
-td{ padding: 2px }
+td{padding:2px}
 
-#tblhdr>tr>td{ background-color:#666; color:white; font-weight:bold; }
+#tblhdr>tr>td{background-color:#666;color:white;font-weight:bold}
 
-#tblbdy>tr>td{ border-bottom:1px solid black; }
-#tblbdy>tr>td.numcel{ text-align: right; }
-#tblbdy>tr>td.imgcel{ font-weight: bold; }
-#tblbdy>tr>td.imgcel>* { vertical-align:top; }
-#tblbdy>tr>td.imgcel>img{ max-width: 1.5em; max-height: 1.5em; margin-right: .3em; }
+#tblbdy>tr>td{border-bottom:1px solid}
+#tblbdy>tr>td.numcel{text-align:right}
+#tblbdy>tr>td.imgcel{font-weight:bold}
+#tblbdy>tr>td.imgcel>*{vertical-align:top}
+#tblbdy>tr>td.imgcel>img{max-width:1.5em;max-height:1.5em;margin-right:.3em}
 
 </style>
 </head>
 <body>
-
 <noscript>JavaScriptを許可してください。= You must enable JavaScript to use.</noscript>
 <table>
 	<caption id="tblttl">Election Points Standings</caption>
@@ -31,11 +32,8 @@ td{ padding: 2px }
 	<legend id="fldttl">Edit Point System</legend>
 	<div>will be made.</div>
 </fieldset>
-
 <footer>It gets datas from <a href="https://starlight.kirara.ca/">Starlight Database</a> and <a href="https://sparql.crssnky.xyz/imas/">Im@sparql</a>.</footer>
 
-<script src="./sldb.js"></script>
-<script src="./imsprql.js"></script>
 <script>
 "use strict";
 const NEW_TAG = tag => document.createElement(tag);
@@ -262,7 +260,8 @@ function addIconBeforeName(){
 	}
 }
 
-(()=>{
+//リソース全部準備できたら始まる
+window.addEventListener("load",()=>{
 	//const tmBegin = Date.now();
 	const prom1 = tellIMSPRQL().then( ()=>{
 		//Im@sparqlからの返答だけでできること
@@ -277,7 +276,7 @@ function addIconBeforeName(){
 		addIconBeforeName();
 		//console.log("promA="+(Date.now()-tmBegin));
 	} );
-})();
+});
 </script>
 </body>
 </html>
