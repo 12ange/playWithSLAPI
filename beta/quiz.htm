@@ -72,22 +72,27 @@ async function requestOrFetch( href ){
 	})( (new gURL(href)).pathname.split(".") );
 	//挙動的には、ホストドメインが変わってもディレクトリ構造が同じなら同じものとみなす。
 
-	const database = await idb.open(nameIDB,1,idbOnUpgrade);
-	//対応したオブジェクトストアがありますか？
-	if( !database || !database.objectStoreNames.contains(storenm) ){
-		if(database){database.close();}
-		throw new Error(`${href} の拡張子 ${storenm} はIDB登録外です`);
+	let database, isEnableIDB = await idb.open(nameIDB,1,idbOnUpgrade).then(
+		r=>{database=r;return true},r=>{return false}
+	);
+
+	if(isEnableIDB){
+		//対応したオブジェクトストアがありますか？
+		if( !database || !database.objectStoreNames.contains(storenm) ){
+			if(database){database.close();}
+			throw new Error(`${href} の拡張子 ${storenm} はIDB登録外です`);
+		}
+		console.log(`${storenm}/${storeky} -toRead`);
+		const romTxn = database.transaction(storenm); //第二引数なし=readonly
+		const romStore = romTxn.objectStore(storenm);
+		let valStored = await romStore.get(storeky);
+		await romTxn.complete; //文字通り、上記トランザクションが完了するまで一時待機
+		if(valStored){
+			console.log(`${storenm}/${storeky} -fineRead`);
+			return valStored;
+		}
+		console.log(`${storenm}/${storeky} -isNotThere`);
 	}
-	console.log(`${storenm}/${storeky} -toRead`);
-	const romTxn = database.transaction(storenm); //第二引数なし=readonly
-	const romStore = romTxn.objectStore(storenm);
-	let valStored = await romStore.get(storeky);
-	await romTxn.complete; //文字通り、上記トランザクションが完了するまで一時待機
-	if(valStored){
-		console.log(`${storenm}/${storeky} -fineRead`);
-		return valStored;
-	}
-	console.log(`${storenm}/${storeky} -isNotThere`);
 	const rspnsfch = await fetch(href);
 	switch( storenm ){ //拡張子ごとにどう解決するか違う
 		case "mp3":
@@ -97,7 +102,7 @@ async function requestOrFetch( href ){
 			valStored = await rspnsfch.blob();
 			break;
 	}
-	if(valStored){
+	if(isEnableIDB && valStored){
 		console.log(`${storenm}/${storeky} -gotStream`);
 		const rawTxn = database.transaction(storenm,"readwrite");
 		const rawStore = rawTxn.objectStore(storenm);
@@ -297,14 +302,19 @@ function cbIdolLoader( _objILr ){
 }
 
 //リソース読み出し前処理
-function beforeFetch(){
+function preFetch(){
 	let h = NEW_TAG("h1");
 	h.textContent = document.title;
 	document.body.appendChild( h );
 	document.body.appendChild( divLog = NEW_TAG("div") );
-	divLog.textContent = msgPlzHoldOn;
 	document.body.appendChild( divOutput = NEW_TAG("div") );
 	//divOutput.appendChild(); 待機アニメーション予定地
+	if( window.indexedDB ){
+		divLog.textContent = msgPlzHoldOn;
+	}else{
+		divLog.textContent = msgPlzHoldOn + "！NO-INDEXED-DATABASE";
+	}
+	asyncFetchResources();
 }
 
 //リソース読み出し中処理
@@ -327,7 +337,7 @@ function afterFetch(){
 }
 
 //ページ読み込み時処理
-window.addEventListener("load", ()=>{ beforeFetch(); asyncFetchResources(); } );
+window.addEventListener("load", preFetch );
 
 //^^^^^^^^ ここまで準備 ^^^^^^^^
 //vvvvvvvv ここから本題 vvvvvvvv
