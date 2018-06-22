@@ -106,7 +106,7 @@ async function requestOrFetch( href ){
 		console.log(`${storenm}/${storeky} -gotStream`);
 		const rawTxn = database.transaction(storenm,"readwrite");
 		const rawStore = rawTxn.objectStore(storenm);
-		await rawStore.put(valStored).then(
+		await rawStore.put(valStored,storeky).then(
 			()=>{ console.log(`${storenm}/${storeky} -finePut`); }
 		)
 		await rawTxn.complete;
