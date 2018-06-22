@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,minimum-scale=1">
 <title>デレステタイトルコール当てクイズ</title>
-<script async src="https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js"></script>
 <link rel="stylesheet" type="text/css" href="imascgss.css">
 <style>
 
@@ -37,7 +36,6 @@ const msgPlzHoldOn = "⌛リソース取得中..."; //PLEASE HOLD ON
 const msgFineFetch = "✅️リソース取得完了。タイトルコール実装済みアイドルは";
 const msgFineFetch2 = "人です。";
 
-const nameIDB = "StarlightDB";
 const hostStarlightDB = "https://starlight.kirara.ca/";
 const pathCharList = "/api/v1/list/char_t?keys=chara_id";
 const pathCharDetail = "/api/v1/char_t/";
@@ -51,63 +49,6 @@ const gAudioCompNode = (c=>{
 	n.connect(c.destination);
 	return n;
 })(gAudioCtx);
-
-//DB更新時処理:
-function idbOnUpgrade(upgradeDB){
-	//breakを使わないことで、版を飛ばした時でも流れ落ちるように処理できる
-	switch (upgradeDB.oldVersion) {
-		case 0:
-			upgradeDB.createObjectStore("mp3"); //音声用ストア
-			upgradeDB.createObjectStore("png"); //画像用ストア
-	}
-}
-
-//まずDBに要求し、無ければFetchで取得して登録する。非同期関数。引数はURL文字列。
-async function requestOrFetch( href ){
-	//HREFからストア名とキーを割り出す。ストア名は拡張子、キーはドメインの後ろ～拡張子の前。
-	let storenm, storeky;
-	(a=>{
-		storeky=a.pop();
-		storenm=a.join(".");
-	})( (new gURL(href)).pathname.split(".") );
-	//挙動的には、ホストドメインが変わってもディレクトリ構造が同じなら同じものとみなす。
-
-	const database = await idb.open(nameIDB,1,idbOnUpgrade);
-	//対応したオブジェクトストアがありますか？
-	if( !database || !database.objectStoreNames.contains(storenm) ){
-		if(database){database.close();}
-		throw new Error(`${href} の拡張子 ${storenm} はIDB登録外です`);
-	}
-	console.log(`${storenm}/${storeky} -toRead`);
-	const romTxn = database.transaction(storenm); //第二引数なし=readonly
-	const romStore = romTxn.objectStore(storenm);
-	let valStored = await romStore.get(storeky);
-	await romTxn.complete; //文字通り、上記トランザクションが完了するまで一時待機
-	if(valStored){
-		console.log(`${storenm}/${storeky} -fineRead`);
-		return valStored;
-	}
-	console.log(`${storenm}/${storeky} -isNotThere`);
-	const rspnsfch = await fetch(href);
-	switch( storenm ){ //拡張子ごとにどう解決するか違う
-		case "mp3":
-			valStored = await rspnsfch.arrayBuffer();
-			break;
-		case "png":
-			valStored = await rspnsfch.blob();
-			break;
-	}
-	if(valStored){
-		console.log(`${storenm}/${storeky} -gotStream`);
-		const rawTxn = database.transaction(storenm,"readwrite");
-		const rawStore = rawTxn.objectStore(storenm);
-		await rawStore.put(valStored).then(
-			()=>{ console.log(`${storenm}/${storeky} -finePut`); }
-		)
-		await rawTxn.complete;
-	}
-	return valStored;
-}
 
 let arIdolDatas = [];
 let arIdolLoaders = [];
@@ -173,7 +114,8 @@ class tIdolLoader {
 		const asyncGetAudioData = async ( _href )=>{
 			let aud;
 			try {
-				const abf = await requestOrFetch(_href);
+				const rsp = await fetch(_href);
+				const abf = await rsp.arrayBuffer();
 				aud = await gAudioCtx.decodeAudioData(abf);
 			} catch (e) {
 				aud = null;
