@@ -72,7 +72,7 @@ async function requestOrFetch( href ){
 	})( (new gURL(href)).pathname.split(".") );
 	//挙動的には、ホストドメインが変わってもディレクトリ構造が同じなら同じものとみなす。
 
-	let database, isEnableIDB = await idb.open(nameIDB,1,idbOnUpgrade).then(
+	let database, valStored, isEnableIDB = await idb.open(nameIDB,1,idbOnUpgrade).then(
 		r=>{database=r;return true},r=>{return false}
 	);
 
@@ -85,7 +85,7 @@ async function requestOrFetch( href ){
 		console.log(`${storenm}/${storeky} -toRead`);
 		const romTxn = database.transaction(storenm); //第二引数なし=readonly
 		const romStore = romTxn.objectStore(storenm);
-		let valStored = await romStore.get(storeky);
+		valStored = await romStore.get(storeky);
 		await romTxn.complete; //文字通り、上記トランザクションが完了するまで一時待機
 		if(valStored){
 			console.log(`${storenm}/${storeky} -fineRead`);
