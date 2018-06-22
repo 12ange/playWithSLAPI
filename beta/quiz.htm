@@ -67,8 +67,8 @@ async function requestOrFetch( href ){
 	//HREFからストア名とキーを割り出す。ストア名は拡張子、キーはドメインの後ろ～拡張子の前。
 	let storenm, storeky;
 	(a=>{
-		storeky=a.pop();
-		storenm=a.join(".");
+		storenm=a.pop();
+		storeky=a.join(".");
 	})( (new gURL(href)).pathname.split(".") );
 	//挙動的には、ホストドメインが変わってもディレクトリ構造が同じなら同じものとみなす。
 
