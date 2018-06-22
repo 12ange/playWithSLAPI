@@ -1,0 +1,44 @@
+/* クラスに"imascgss"[+α]を指定したものにスタイルを適用する */
+
+/* ボタンは共通デザイン */
+button.imascgss{
+	background-color:#fff;
+	background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.1));
+	border:1px solid #000;
+	border-radius:4px;
+	color:#000;
+	cursor:pointer;
+	font-weight:bold;
+	font-size:16px;
+	min-width:100px;
+	padding:.5em 0;
+	box-shadow:0 4px #000;
+}
+button.imascgss.strong{
+	background-color: #f7d;
+	color:#fff;
+	text-shadow:-1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
+}
+button.imascgss:active{ /* while down */
+	transform:translateY(4px);
+	box-shadow:none;
+}
+button.imascgss:disabled{
+	background-color:gray;
+	color:#fff;
+	cursor:auto;
+	text-shadow:-1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
+}
+
+/* 属性色設定。明暗反転は、反転表現属性文字列で指定。
+   https://www.kanzaki.com/docs/html/color-check の輝度比を参考に、属性が切り替わっても輝度が変わらないようにした */
+/*#d06:#ffe7ee is 0.16331:0.84585=4.2*/
+.imascgss.cute{color:#d06; border-color:#d06; background-color:#ffe7ee}
+.imascgss.etuc{color:#ffe7ee; border-color:#ffe7ee; background-color:#d06}
+/*#06f:#e7eeff is 0.16723:0.85358=4.16*/
+.imascgss.cool{color:#06f; border-color:#06f; background-color:#e7eeff}
+.imascgss.looc{color:#e7eeff; border-color:#e7eeff; background-color:#06f}
+/*#960:#feb is 0.16275:0.85997=4.277*/
+.imascgss.passion{color:#960; border-color:#960; background-color:#feb}
+.imascgss.noissap{color:#feb; border-color:#feb; background-color:#960}
+/*文字列反転は自作で→ const reverseString = s=>{let t="";for(let v of s){t=v+t}return t} */
