@@ -78,20 +78,21 @@ async function requestOrFetch( href ){
 
 	if(isEnableIDB){
 		//対応したオブジェクトストアがありますか？
-		if( !database || !database.objectStoreNames.contains(storenm) ){
-			if(database){database.close();}
-			throw new Error(`${href} の拡張子 ${storenm} はIDB登録外です`);
+		if( !database.objectStoreNames.contains(storenm) ){
+			console.warn(`${href} の拡張子 ${storenm} はIDB登録外です`);
+			isEnableIDB = false; //indexedDBが使えない時と同じ処理をする
+		}else{
+			//console.log(`${storenm}/${storeky} -toRead`);
+			const romTxn = database.transaction(storenm); //第二引数なし=readonly
+			const romStore = romTxn.objectStore(storenm);
+			valStored = await romStore.get(storeky);
+			await romTxn.complete; //文字通り、上記トランザクションが完了するまで一時待機
+			if(valStored){
+				//console.log(`${storenm}/${storeky} -fineRead`);
+				return valStored;
+			}
+			//console.log(`${storenm}/${storeky} -isNotThere`);
 		}
-		console.log(`${storenm}/${storeky} -toRead`);
-		const romTxn = database.transaction(storenm); //第二引数なし=readonly
-		const romStore = romTxn.objectStore(storenm);
-		valStored = await romStore.get(storeky);
-		await romTxn.complete; //文字通り、上記トランザクションが完了するまで一時待機
-		if(valStored){
-			console.log(`${storenm}/${storeky} -fineRead`);
-			return valStored;
-		}
-		console.log(`${storenm}/${storeky} -isNotThere`);
 	}
 	const rspnsfch = await fetch(href);
 	switch( storenm ){ //拡張子ごとにどう解決するか違う
@@ -103,11 +104,11 @@ async function requestOrFetch( href ){
 			break;
 	}
 	if(isEnableIDB && valStored){
-		console.log(`${storenm}/${storeky} -gotStream`);
+		//console.log(`${storenm}/${storeky} -gotStream`);
 		const rawTxn = database.transaction(storenm,"readwrite");
 		const rawStore = rawTxn.objectStore(storenm);
 		await rawStore.put(valStored,storeky).then(
-			()=>{ console.log(`${storenm}/${storeky} -finePut`); }
+			//()=>{ console.log(`${storenm}/${storeky} -finePut`); }
 		)
 		await rawTxn.complete;
 	}
