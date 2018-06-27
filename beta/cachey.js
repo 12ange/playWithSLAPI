@@ -71,7 +71,7 @@ var cachey = cachey || {
 			//↓↓DBが有効かつ要求完了時、DBに登録↓↓
 			if(isEnableIDB && valStored){
 				//console.log(`${storenm}/${storeky} -gotStream`);
-				const rawTxn = database.transaction(storenm,"readwrite");
+				const rawTxn = cachey.dbOpened.transaction(storenm,"readwrite");
 				const rawStore = rawTxn.objectStore(storenm);
 				await rawStore.put(valStored,storeky).then(
 					//()=>{ console.log(`${storenm}/${storeky} -finePut`); }
