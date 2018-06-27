@@ -3,7 +3,7 @@
 /* ボタンは共通デザイン */
 button.imascgss{
 	background-color:#fff;
-	background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.1));
+	background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.1)); /*上から下に、10%暗くなるグラデ*/
 	border:1px solid #000;
 	border-radius:4px;
 	color:#000;
@@ -14,21 +14,17 @@ button.imascgss{
 	padding:.5em 0;
 	box-shadow:0 4px #000;
 }
-button.imascgss.strong{
-	background-color: #f7d;
+button.imascgss.strong{background-color:#f7d}
+button.imascgss:disabled{background-color:gray; cursor:auto}
+button.imascgss.strong, button.imascgss:disabled{ /*背景色が白ではないボタン共通:白文字に黒縁取り*/
 	color:#fff;
-	text-shadow:-1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
+	text-shadow:
+		-1px -2px 0 #000, 1px -2px 0 #000,
+		-2px -1px 0 #000, 2px -1px 0 #000,
+		-2px  1px 0 #000, 2px  1px 0 #000,
+		-1px  2px 0 #000, 1px  2px 0 #000; /*要するに八方桂馬の位置です。半径sqrt(3)*/
 }
-button.imascgss:active{ /* while down */
-	transform:translateY(4px);
-	box-shadow:none;
-}
-button.imascgss:disabled{
-	background-color:gray;
-	color:#fff;
-	cursor:auto;
-	text-shadow:-1px -1px 1px #000, 1px -1px 1px #000, 1px -1px 1px #000, 1px 1px 1px #000;
-}
+button.imascgss:active{transform:translateY(4px); box-shadow:none} /*押下中*/
 
 /* 属性色設定。明暗反転は、反転表現属性文字列で指定。
    https://www.kanzaki.com/docs/html/color-check の輝度比を参考に、属性が切り替わっても輝度が変わらないようにした */
