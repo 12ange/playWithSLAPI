@@ -506,6 +506,7 @@ function playQuizSound(){
 
 //正誤判定
 function judgeAnswer(){
+	HBEanswer.funcChangeEnable(false);
 	const bJudge = ((_x,_y)=>{
 		if(_x.length !== _y.length) return false;
 		for( let oy of _y ){ if( _x.indexOf(oy) < 0 ){ return false; } }
