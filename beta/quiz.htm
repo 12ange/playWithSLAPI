@@ -124,7 +124,7 @@ class tIdolLoader {
 			}
 			return aud;
 		};
-		// ++非同期関数++ URLから画像を取得
+		// ++非同期関数++
 		const promiseGetImage = ( _href )=>{
 			return new Promise( (resolve,reject)=>{
 				let hie = NEW_TAG("img");
@@ -132,6 +132,17 @@ class tIdolLoader {
 				hie.onerror = (e)=>{ reject(e); };
 				hie.src = _href;
 			} );
+		};
+		// ++非同期関数++ URLを与えてIMGタグにする
+		const asyncGetImageElement = async ( _href )=>{
+			let hie;
+			try {
+				const blb = await cachey.requestOrFetch(_href);
+				hie = await promiseGetImage( gURL.createObjectURL( blb ) );
+			} catch (e) {
+				hie = null;
+			}
+			return hie;
 		};
 
 		//アイドル個人の情報のvoiceが空文字列ではない＝タイトルコールがある「かもしれない」。
@@ -150,7 +161,7 @@ class tIdolLoader {
 			if( ! this[tIdol.pNmADtitleS] ){ throw "if there is HTTP:404 then never mind."; }
 			//引き続き、残る要素を読み込む。並列処理テクを使う。
 			//1. await抜きでasync関数を呼び出すことでPromiseを生成(実行開始)。
-			const prmIcon = promiseGetImage(this.urlIcon);
+			const prmIcon = asyncGetImageElement(this.urlIcon);
 			const prmTitleU = asyncGetAudioData(urlTitleU);
 			const prmNameD = asyncGetAudioData(urlNameD);
 			const prmNameX = asyncGetAudioData(urlNameX);
