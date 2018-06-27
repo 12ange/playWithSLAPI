@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,minimum-scale=1">
 <title>デレステタイトルコール当てクイズ</title>
+<script async src="https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js"></script>
+<script async src="./cachey.js"></script>
 <link rel="stylesheet" type="text/css" href="imascgss.css">
 <style>
 
@@ -36,6 +38,7 @@ const msgPlzHoldOn = "⌛リソース取得中..."; //PLEASE HOLD ON
 const msgFineFetch = "✅️リソース取得完了。タイトルコール実装済みアイドルは";
 const msgFineFetch2 = "人です。";
 
+const nameIDB = "StarlightDB";
 const hostStarlightDB = "https://starlight.kirara.ca/";
 const pathCharList = "/api/v1/list/char_t?keys=chara_id";
 const pathCharDetail = "/api/v1/char_t/";
@@ -114,15 +117,14 @@ class tIdolLoader {
 		const asyncGetAudioData = async ( _href )=>{
 			let aud;
 			try {
-				const rsp = await fetch(_href);
-				const abf = await rsp.arrayBuffer();
+				const abf = await cachey.requestOrFetch(_href);
 				aud = await gAudioCtx.decodeAudioData(abf);
 			} catch (e) {
 				aud = null;
 			}
 			return aud;
 		};
-		// ++非同期関数++ URLから画像を取得
+		// ++非同期関数++
 		const promiseGetImage = ( _href )=>{
 			return new Promise( (resolve,reject)=>{
 				let hie = NEW_TAG("img");
@@ -130,6 +132,17 @@ class tIdolLoader {
 				hie.onerror = (e)=>{ reject(e); };
 				hie.src = _href;
 			} );
+		};
+		// ++非同期関数++ URLを与えてIMGタグにする
+		const asyncGetImageElement = async ( _href )=>{
+			let hie;
+			try {
+				const blb = await cachey.requestOrFetch(_href);
+				hie = await promiseGetImage( gURL.createObjectURL( blb ) );
+			} catch (e) {
+				hie = null;
+			}
+			return hie;
 		};
 
 		//アイドル個人の情報のvoiceが空文字列ではない＝タイトルコールがある「かもしれない」。
@@ -148,7 +161,7 @@ class tIdolLoader {
 			if( ! this[tIdol.pNmADtitleS] ){ throw "if there is HTTP:404 then never mind."; }
 			//引き続き、残る要素を読み込む。並列処理テクを使う。
 			//1. await抜きでasync関数を呼び出すことでPromiseを生成(実行開始)。
-			const prmIcon = promiseGetImage(this.urlIcon);
+			const prmIcon = asyncGetImageElement(this.urlIcon);
 			const prmTitleU = asyncGetAudioData(urlTitleU);
 			const prmNameD = asyncGetAudioData(urlNameD);
 			const prmNameX = asyncGetAudioData(urlNameX);
@@ -185,6 +198,8 @@ async function asyncFetchResources() {
 		return (await resReq.json())["result"];
 	};
 
+	let prmInitIDB = cachey.asyncInit(); //cacheyの初期化Promise
+
 	let arrslt = await asyncFetchAndStrip(urlFirstRequest);
 	//最初の結果を利用して次に呼び出すURLを構築
 	let strCharIds = "";
@@ -209,6 +224,8 @@ async function asyncFetchResources() {
 	}
 	let secondRequestURL = new gURL(pathCharDetail+strCharIds, urlFirstRequest);
 	arrslt = await asyncFetchAndStrip(secondRequestURL);
+	await prmInitIDB; //cacheyの初期化完了もここで待つ
+	//console.log( `cachey:${cachey.dbOpened?"READY":("ERROR/"+cachey.strDbErr)}` );
 
 	for( let objrslt of arrslt ){
 		if( ! objrslt["voice"] ) continue;
@@ -239,14 +256,19 @@ function cbIdolLoader( _objILr ){
 }
 
 //リソース読み出し前処理
-function beforeFetch(){
+function preFetch(){
 	let h = NEW_TAG("h1");
 	h.textContent = document.title;
 	document.body.appendChild( h );
 	document.body.appendChild( divLog = NEW_TAG("div") );
-	divLog.textContent = msgPlzHoldOn;
 	document.body.appendChild( divOutput = NEW_TAG("div") );
 	//divOutput.appendChild(); 待機アニメーション予定地
+	if( window.indexedDB ){
+		divLog.textContent = msgPlzHoldOn;
+	}else{
+		divLog.textContent = msgPlzHoldOn + "！NO-INDEXED-DATABASE";
+	}
+	asyncFetchResources();
 }
 
 //リソース読み出し中処理
@@ -269,7 +291,7 @@ function afterFetch(){
 }
 
 //ページ読み込み時処理
-window.addEventListener("load", ()=>{ beforeFetch(); asyncFetchResources(); } );
+window.addEventListener("load", preFetch );
 
 //^^^^^^^^ ここまで準備 ^^^^^^^^
 //vvvvvvvv ここから本題 vvvvvvvv
