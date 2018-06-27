@@ -319,11 +319,13 @@ function init_objChoice(_aIdols){
 			HSEquiz.style.backgroundColor = "black";
 			HSEquiz.style.color = "white";
 			HSEquiz.style.fontWeight = "bold";
+			HBEplay.classList.add("strong");
 		}else{
 			//特殊指定の解除
 			HSEquiz.style.backgroundColor = "";
 			HSEquiz.style.color = "";
 			HSEquiz.style.fontWeight = "";
+			HBEplay.classList.remove("strong");
 		}
 		HSEanswer.textContent = "";
 	};
