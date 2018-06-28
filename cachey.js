@@ -37,7 +37,7 @@ var cachey = cachey || {
 						upgradeDB.createObjectStore("mp3"); //音声用ストア
 						upgradeDB.createObjectStore("png"); //画像用ストア
 				} //breakを使わないことで、版を飛ばした時でも流れ落ちるように処理できる
-			}
+			} )
 		).then( r=>{cachey.dbOpened=r;return true}
 		).catch( r=>{cachey.strDbErr=r.toString();return false} );
 	},
