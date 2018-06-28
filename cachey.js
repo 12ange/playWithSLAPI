@@ -3,6 +3,7 @@
  * Promise版IndexedDB https://github.com/jakearchibald/idb を使う。
  * オススメは script defer src="https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js" の直後にこれをdeferで読み込む。
  */
+
 var cachey = cachey || {
 	/**
 	 * @type{IDBDatabase} 開かれたデータベース
@@ -17,7 +18,7 @@ var cachey = cachey || {
 	 * @return{Promise<Boolean>} Promise<初期化の成否>
 	 */
 	async asyncInit(){
-		return await self.idb.open( nameIDB, 1, upgradeDB=>{
+		return await self.idb.open( "StarlightDB", 1, upgradeDB=>{
 			//****DB更新時処理****
 			switch (upgradeDB.oldVersion) {
 				case 0:
