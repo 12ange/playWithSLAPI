@@ -35,10 +35,11 @@ var cachey = cachey || {
 		let storenm, storeky, valStored = null;
 		//HREFからストア名とキーを割り出す。ストア名は拡張子、キーはドメインの後ろ～拡張子の前。
 		//挙動的には、ホストドメインが変わってもディレクトリ構造が同じなら同じものとみなす。
+		const xURL = window.URL || window.webkitURL;
 		(a=>{
 			storenm=a.pop();
 			storeky=a.join(".");
-		})( (new gURL(href)).pathname.split(".") );
+		})( (new xURL(href)).pathname.split(".") );
 		let isEnableIDB = cachey.dbOpened !== null;
 		//↓↓DBから取り出し↓↓
 		if(isEnableIDB){

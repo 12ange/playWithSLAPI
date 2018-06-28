@@ -6,6 +6,7 @@
 <title>総選挙結果で得点付与してポイントランキング</title>
 <script async src="./sldb.js"></script>
 <script async src="./imsprql.js"></script>
+<script async src="./cachey.js"></script>
 <link rel="stylesheet" type="text/css" href="imascgss.css">
 <style>
 
@@ -254,7 +255,11 @@ function addIconBeforeName(){
 		const rcd = gIdolDatabase.get(td.textContent);
 		if(rcd !== undefined){
 			const img = NEW_TAG("img");
-			img.src = rcd["src"], img.alt = rcd["alt"];
+			img.alt = rcd["alt"];
+			cachey.requestOrFetch( rcd["src"] ).then(blb=>{
+				const xURL = window.URL || window.webkitURL;
+				img.src = xURL.createObjectURL( blb )
+			});
 			td.insertBefore(img,td.firstChild);
 		}
 	}
