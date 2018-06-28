@@ -275,7 +275,7 @@ window.addEventListener("load",()=>{
 		//console.log("prom1="+(Date.now()-tmBegin));
 	} );
 	Promise.all( [
-		tellSLDB(), prom1, setupEditZone()
+		tellSLDB(), prom1, setupEditZone(), cachey.asyncInit()
 	] ).then( ()=>{
 		//SLDBの返答も必要なこと
 		addIconBeforeName();
