@@ -26,6 +26,7 @@ var cachey = cachey || {
 				t.onload = ()=>{ resolve(self.idb) };
 				t.onerror = (e)=>{ reject(e); };
 				t.src = "https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js";
+				document.body.appendChild(t);
 			}
 		} );
 		//上記promiseからdot-chain
