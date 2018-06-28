@@ -1,9 +1,8 @@
 /**
  * cachey - 特定型のファイルをキャッシュしてくれる子。命名はキャシー・グラハムから。(Cathy X cache)
  * Promise版IndexedDB https://github.com/jakearchibald/idb を使う。
- * オススメは script defer src="https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js" の直後にこれをdeferで読み込む。
+ * 少しでも早く初期化したければ script defer src="https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js" の直後にこれをdeferで読み込む。
  */
-
 var cachey = cachey || {
 	/**
 	 * @type{IDBDatabase} 開かれたデータベース
@@ -18,14 +17,28 @@ var cachey = cachey || {
 	 * @return{Promise<Boolean>} Promise<初期化の成否>
 	 */
 	async asyncInit(){
-		return await self.idb.open( "StarlightDB", 1, upgradeDB=>{
-			//****DB更新時処理****
-			switch (upgradeDB.oldVersion) {
-				case 0:
-					upgradeDB.createObjectStore("mp3"); //音声用ストア
-					upgradeDB.createObjectStore("png"); //画像用ストア
-			} //breakを使わないことで、版を飛ばした時でも流れ落ちるように処理できる
-		} ).then( r=>{cachey.dbOpened=r;return true}
+		//script非同期ロードのpromise
+		const promLoadPIDB = new Promise( (resolve,reject)=>{
+			if( !"idb" in self ){
+				resolve(self.idb);
+			}else{
+				let t = document.createElement("script");
+				t.onload = ()=>{ resolve(self.idb) };
+				t.onerror = (e)=>{ reject(e); };
+				t.src = "https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js";
+			}
+		} );
+		//上記promiseからdot-chain
+		return await promLoadPIDB.then(
+			pidb=>pidb.open( "StarlightDB", 1, upgradeDB=>{
+				//****DB更新時処理****
+				switch (upgradeDB.oldVersion) {
+					case 0:
+						upgradeDB.createObjectStore("mp3"); //音声用ストア
+						upgradeDB.createObjectStore("png"); //画像用ストア
+				} //breakを使わないことで、版を飛ばした時でも流れ落ちるように処理できる
+			}
+		).then( r=>{cachey.dbOpened=r;return true}
 		).catch( r=>{cachey.strDbErr=r.toString();return false} );
 	},
 	/**
