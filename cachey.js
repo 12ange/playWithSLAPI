@@ -1,7 +1,8 @@
 /**
  * cachey - 特定型のファイルをキャッシュしてくれる子。命名はキャシー・グラハムから。(Cathy X cache)
  * Promise版IndexedDB https://github.com/jakearchibald/idb を使う。
- * 少しでも早く初期化したければ script defer src="https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js" の直後にこれをdeferで読み込む。
+ * 少しでも早く初期化したければ script defer src="./idb.js" の直後にこれをdeferで読み込む。
+ * NOTE: CDNから消えていたので同じディレクトリに封じておきます on 2019/02/28
  */
 var cachey = cachey || {
 	/**
@@ -25,7 +26,7 @@ var cachey = cachey || {
 				let t = document.createElement("script");
 				t.onload = ()=>{ resolve(self.idb) };
 				t.onerror = (e)=>{ reject(e); };
-				t.src = "https://cdn.rawgit.com/jakearchibald/idb/master/lib/idb.js";
+				t.src = "./idb.js";
 				document.body.appendChild(t);
 			}
 		} );
