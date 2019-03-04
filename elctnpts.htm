@@ -9,21 +9,21 @@
 <script async src="./cachey.js"></script>
 <link rel="stylesheet" type="text/css" href="imascgss.css">
 <style>
-
+#diverr{border:1px dotted white;padding:3px}
+.hidden{display:none}
 td{padding:2px}
-
+#diverr,
 #tblhdr>tr>td{background-color:#666;color:white;font-weight:bold}
-
 #tblbdy>tr>td{border-bottom:1px solid}
 #tblbdy>tr>td.numcel{text-align:right}
 #tblbdy>tr>td.imgcel{font-weight:bold}
 #tblbdy>tr>td.imgcel>*{vertical-align:top}
 #tblbdy>tr>td.imgcel>img{max-width:1.5em;max-height:1.5em;margin-right:.3em}
-
 </style>
 </head>
 <body>
 <noscript>JavaScriptを許可してください。= You must enable JavaScript to use.</noscript>
+<div id="diverr" class="hidden">dummyErrorMessage</div>
 <table>
 	<caption id="tblttl">Election Points Standings</caption>
 	<thead id="tblhdr"></thead>
@@ -114,8 +114,16 @@ async function tellIMSPRQL(){
 	).andPO(
 		"imas:Type", "?"+type
 	); //回と順位を表すURI,名前,属性
-	let reqry = await imsprql.execute(), //********クエリ実行********
-		mprounds = new Map(), //各回をまとめるMap
+	let reqry = await imsprql.execute(); //********クエリ実行********
+	if(reqry===null){
+		//クエリ実行に失敗した
+		let d = GET_ID("diverr");
+		d.textContent = "エラー：Im@sparql/クエリ実行に失敗。サービスダウンかも？"
+		d.classList.remove("hidden");
+		return;
+	}
+
+	let mprounds = new Map(), //各回をまとめるMap
 		mpnames = new Map(); //ランクインした名前一覧
 	for(const o of reqry){
 		let [rnd,rnk] = o[roundrank].value.split("/").pop().split("_"); //URIを[round,rank]に分解
