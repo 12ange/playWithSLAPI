@@ -69,7 +69,7 @@ var imsprql = imsprql || {
 			v = await k.json();
 			retobj = v["results"]["bindings"]; //返信を成型してreturn
 		} catch (e) {
-			console.error(e+" <"+url+">");
+			console.error(`${e} < ${url} >`);
 		}
 		return retobj;
 	}
