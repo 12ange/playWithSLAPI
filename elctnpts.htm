@@ -286,7 +286,7 @@ window.addEventListener("load",()=>{
 		tellSLDB(), prom1, setupEditZone(), cachey.asyncInit()
 	] ).then( ()=>{
 		//SLDBの返答も必要なこと
-		addIconBeforeName();
+		if( sldb.isConnected ){ addIconBeforeName() }
 		//console.log("promA="+(Date.now()-tmBegin));
 	} );
 });
