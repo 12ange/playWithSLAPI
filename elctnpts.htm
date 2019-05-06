@@ -98,6 +98,8 @@ async function tellIMSPRQL(){
 	).set(
 		"rdf","http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 	).set(
+		"rdfs","http://www.w3.org/2000/01/rdf-schema#"
+	).set(
 		"schema","http://schema.org/"
 	);
 	const name = "nam", roundrank = "rnr", type ="typ";
@@ -110,7 +112,7 @@ async function tellIMSPRQL(){
 	).addWhereSPO(
 		"?uri", "rdf:type", "imas:Idol"
 	).andPO(
-		"schema:name", "?"+name
+		"rdfs:label", "?"+name
 	).andPO(
 		"imas:Type", "?"+type
 	); //回と順位を表すURI,名前,属性
@@ -285,9 +287,11 @@ window.addEventListener("load",()=>{
 	Promise.all( [
 		tellSLDB(), prom1, setupEditZone(), cachey.asyncInit()
 	] ).then( ()=>{
-		//SLDBの返答も必要なこと
-		if( sldb.isConnected ){ addIconBeforeName() }
-		//console.log("promA="+(Date.now()-tmBegin));
+		if( sldb.isConnected ){
+			//SLDBの返答も必要なこと
+			addIconBeforeName();
+			//console.log("promA="+(Date.now()-tmBegin));
+		}
 	} );
 });
 </script>
