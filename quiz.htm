@@ -260,8 +260,12 @@ function progressFetch(){
 
 //リソース読み出し後処理
 function afterFetch(){
-	//ID順・昇順に整列。リソース読み出し完了は順不同になるため。
-	arIdolDatas.sort( (fore,back) => fore.cid - back.cid );
+	//CuCoPa順＞ID順・昇順に整列。リソース読み出し完了は順不同になるため。
+	arIdolDatas.sort( (fore,back)=>{
+		const typeIndex = ["cute","cool","passion"];
+		let diffType = typeIndex.indexOf(fore.type) - typeIndex.indexOf(back.type);
+		return diffType!==0 ? diffType : fore.cid - back.cid;
+	});
 	divLog.textContent = `${msgFineFetch} ${arIdolDatas.length} ${msgFineFetch2}`;
 	//全スクリーン共通の配置準備
 	document.body.appendChild( divInput = NEW_TAG("div") );
