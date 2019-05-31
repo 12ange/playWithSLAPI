@@ -39,7 +39,7 @@ const msgFineFetch = "✅️リソース取得完了。タイトルコール実�
 const msgFineFetch2 = "人です。";
 
 const hostStarlightDB = "https://starlight.kirara.ca/";
-const pathCharList = "/api/v1/list/char_t?keys=chara_id";
+const pathCharList = "/api/v1/list/card_t?keys=chara_id"; //※char_tが500を返すのでcard_tで代用
 const pathCharDetail = "/api/v1/char_t/";
 //URLインターフェースを利用して引数を安全にURL化(さもなくば例外を投げる)
 const urlFirstRequest = new gURL(pathCharList,hostStarlightDB);
@@ -201,26 +201,9 @@ async function asyncFetchResources() {
 
 	let arrslt = await asyncFetchAndStrip(urlFirstRequest);
 	//最初の結果を利用して次に呼び出すURLを構築
-	let strCharIds = "";
-	for( const s of arrslt ){
-		let cid = s["chara_id"];
-		switch (cid) {
-			case 20: //18-20はちひろさん版おねシン(2016)
-			case 18:
-			case 19:
-			case 48: //48-50はぷちニュージェネ版ビヨスタ(2017)
-			case 49:
-			case 50:
-			case 86: //83,86-87はきらりんロボのテーマ(2018)
-			case 87:
-			case 83:
-				/*** 以上の四月馬鹿用IDは要求から除外 ***/
-				break;
-			default:
-				strCharIds += (strCharIds.length>0 ? "," : "")+cid;
-				break;
-		}
-	}
+	let setCharId = new Set();
+	arrslt.forEach( o=>{setCharId.add(o["chara_id"])} );
+	let strCharIds = Array.from(setCharId).join();
 	let secondRequestURL = new gURL(pathCharDetail+strCharIds, urlFirstRequest);
 	arrslt = await asyncFetchAndStrip(secondRequestURL);
 	await prmInitIDB; //cacheyの初期化完了もここで待つ
