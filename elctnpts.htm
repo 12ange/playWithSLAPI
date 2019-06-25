@@ -262,8 +262,11 @@ function addIconBeforeName(){
 		if(rcd !== undefined){
 			const img = NEW_TAG("img");
 			img.alt = rcd["alt"];
+			img.classList.add("hidden");
 			cachey.requestOrFetch( rcd["src"] ).then(blb=>{
 				img.src = sldb.URL.createObjectURL( blb )
+			}).finally(()=>{
+				img.classList.remove("hidden");
 			});
 			td.insertBefore(img,td.firstChild);
 		}
