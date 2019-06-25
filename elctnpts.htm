@@ -63,24 +63,20 @@ gIdolDatabase.mergeKeyObj = function(key,obj){
 //-------------------------------
 async function tellSLDB(){
 	if( ! await sldb.connect() ){
-		console.error("<SLDB接続失敗> "+sldb.listChar);
+		console.error("<SLDB接続失敗> "+sldb.info);
 		return;
 	}
-	//有効な(被選挙権を持つ) chara_id を列挙(配列に収納)
-	let arr = [];
-	for (const entry of sldb.listChar) {
-		const cid = parseInt( entry["chara_id"], 10 );
-		if( 100<=cid && cid<=999 ){
-			arr.push(cid);
-		}
-	}
-	arr = await sldb.requestCharDetail( ...arr ); //問い合わせ
+	//有効な(被選挙権を持つ) chara_id を列挙(配列に収納) : デレステにカードがあるchara_idの一覧をつくる
+	let setCharId = new Set(), arr = await sldb.requestCardList("keys=chara_id");
+	arr.forEach( o=>{setCharId.add(o["chara_id"])} );
+
+	arr = await sldb.requestCharDetail( ...setCharId ); //問い合わせ
 	if(arr === null){
 		console.error("<SLDB詳細リクエスト失敗>");
 		return;
 	}
 	//返答から、必要な値のみ残す
-	const baseurl = new sldb.URL( sldb.getPathCharDetail(101), sldb.hostConnected );
+	const baseurl = new sldb.URL( sldb.__createApiPath(sldb.__typeChar,101), sldb.hostConnected );
 	for(const o of arr){
 		let p = {};
 		p["src"] = new sldb.URL( o["icon_image_ref"], baseurl ).href; //ファイル名
@@ -267,8 +263,7 @@ function addIconBeforeName(){
 			const img = NEW_TAG("img");
 			img.alt = rcd["alt"];
 			cachey.requestOrFetch( rcd["src"] ).then(blb=>{
-				const xURL = window.URL || window.webkitURL;
-				img.src = xURL.createObjectURL( blb )
+				img.src = sldb.URL.createObjectURL( blb )
 			});
 			td.insertBefore(img,td.firstChild);
 		}
