@@ -20,7 +20,7 @@ var cachey = cachey || {
 	async asyncInit(){
 		//script非同期ロードのpromise
 		const promLoadPIDB = new Promise( (resolve,reject)=>{
-			if( !"idb" in self ){
+			if( "idb" in self ){
 				resolve(self.idb);
 			}else{
 				let t = document.createElement("script");
