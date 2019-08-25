@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,minimum-scale=1">
+<title>音声でアイドル選択機能……の下準備</title>
+<script async src="./sldb.js"></script>
+<style>
+#tapzone{ width: 75%; min-height: 3em; border: 3px ridge silver;}
+#results,#recogs{
+	width: 75%; line-height: 1.25em; border: 1px dotted black; margin-top: 1em;
+}
+
+</style>
+</head>
+<body>
+<h2>音声でアイドル選択する機能……の下準備</h2>
+<p>使用可否の参考：<a href="https://caniuse.com/#feat=speech-recognition">Can I use | Speech Recognition API</a></p>
+<!-- https://12ange.github.io/playWithSLAPI/demo_wsrecog.htm -->
+<div id="tapzone"></div>
+<div id="results">結果はここに表示(毎回上書き)</div>
+<div id="recogs">結果はここに表示(毎回上書き)</div>
+
+<script>
+"use strict";
+const NEW_TAG = tag => document.createElement(tag);
+const GET_ID = id => document.getElementById(id);
+
+
+/*** Chromeではオンライン・HTTPS必須 ***/
+/*** FireFoxではブラウザ側での設定必須 ***/
+const xSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+//const xSpeechGrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList;
+//20180611:文法については英語でも挙動が変なので(文法外でも認識する)、保留。
+//const xSpeechRecognitionEvent = window.SpeechRecognitionEvent || window.webkitSpeechRecognitionEvent;
+
+let timeRecognizing = 0 , isRecognizing = false;
+
+let wsrecog = new xSpeechRecognition();
+
+//認識に使う言語。これと違う言語で話しかけるとものの見事にとっちらかるｗ
+wsrecog.lang = "ja";
+
+//認識選択肢の最大数を変更。初期値は 1 。多いと拾いやすそう。
+wsrecog.maxAlternatives = 99;
+//20180611:Chromeデフォルトだと、増やしてもconfidenceはAlt#0番以外は0になるらしい(bug?)
+
+wsrecog.addEventListener("result", _event=>{
+	//音声認識結果イベント。型は xSpeechRecognitionEvent
+	//.result は認識結果リスト。
+	//.result.lengthが結果件数
+	//.result[N] は認識結果。
+	//.result[N].isFinal が認識処理完了フラグ
+	//.result[N].length が認識選択肢 alternative の数
+	//.result[N][M] が認識選択肢。
+	//.result[N][M].transcript が認識結果文
+	//.result[N][M].confidence が信頼度
+	const rcgnList = _event.results;
+	let goodRecogs = [],
+		textResult = `[OK] 認識結果 ${rcgnList.length}件<br>`;
+
+	for(let i=0; i<rcgnList.length; i++){
+		let altntvs = rcgnList[i];
+		textResult += `結果#${i+1}, 選択肢 ${altntvs.length}個&gt;<br>`;
+		for(let j=0; j<altntvs.length; j++){
+			textResult += `その${j+1}; ${altntvs[j].transcript} (${100*altntvs[j].confidence}%)<br>`;
+			if( altntvs[j].confidence > 0 ){
+				goodRecogs.push(altntvs[j]); //評価がある認識結果は保存される
+			}
+		}
+		textResult += `&lt;結果#${i+1}<br>`;
+	}
+	GET_ID("recogs").innerHTML = textResult;
+
+	analyzeGoodRecogs(goodRecogs);
+});
+
+wsrecog.addEventListener("nomatch", _event=>{
+	//音声認識不能イベント。型は xSpeechRecognitionEvent
+	//語彙を与える形の場合か？
+	GET_ID("recogs").textContent = "[NO MATCH] "+_event.results.length;
+	//console.log("nomatch");
+	//console.log(_event.results);
+});
+wsrecog.addEventListener("error", _event=>{
+	//_event.errorに理由の文字列。型は xSpeechRecognitionError
+	GET_ID("recogs").textContent = `[ERROR] ${_event.error} / ${_event.message}`;
+	//console.log(`error: ${_event.error} / ${_event.message}`);
+});
+
+//各種タイミングイベント
+//start~end 音声認識受付開始~終了
+//audiostart~audioend 音声収録開始~終了
+//soundstart~soundend 何らかの音の入力を検知~終了
+//speechstart~speechend 認識できそうな音の入力を検知~終了
+wsrecog.addEventListener("start", ()=>{
+	isRecognizing = true;
+	timeRecognizing = Date.now();
+	GET_ID("tapzone").textContent = "<onStart>";
+});
+wsrecog.addEventListener("end", ()=>{
+	isRecognizing = false;
+	GET_ID("tapzone").textContent += `<onEnd=${Date.now()-timeRecognizing}ms> TAPでもう一度`;
+});
+wsrecog.addEventListener("audiostart", ()=>{
+	GET_ID("tapzone").textContent += `<onAudioStart=${Date.now()-timeRecognizing}ms>`;
+});
+wsrecog.addEventListener("audioend", ()=>{
+	GET_ID("tapzone").textContent += `<onAudioEnd=${Date.now()-timeRecognizing}ms>`;
+});
+wsrecog.addEventListener("soundstart", ()=>{
+	GET_ID("tapzone").textContent += `<onSoundStart=${Date.now()-timeRecognizing}ms>`;
+});
+wsrecog.addEventListener("soundend", ()=>{
+	GET_ID("tapzone").textContent += `<onSoundEnd=${Date.now()-timeRecognizing}ms>`;
+});
+wsrecog.addEventListener("speechstart", ()=>{
+	GET_ID("tapzone").textContent += `<onSpeechStart=${Date.now()-timeRecognizing}ms>`;
+});
+wsrecog.addEventListener("speechend", ()=>{
+	GET_ID("tapzone").textContent += `<onSpeechEnd=${Date.now()-timeRecognizing}ms>`;
+});
+
+//エリアがタップされたら音声認識開始/停止。
+GET_ID("tapzone").addEventListener("click",()=>{
+	//初期化完了前に触られたら無視する
+	if(gbInitialized){
+		if(isRecognizing){wsrecog.stop()}else{wsrecog.start()}
+	}
+});
+
+//==============================================================================
+
+let gaIdolNames = [];
+let gbInitialized = false;
+const gcFullScore = 100;
+
+//漢字とルビの組
+class TKanjiRuby {
+	constructor( _kanji, _ruby ){
+		this.kanji = _kanji;
+		this.ruby = _ruby;
+	}
+}
+
+async function init() {
+	if( ! await sldb.connect() ){
+		GET_ID("tapzone").textContent = "[ERROR] SLDB接続失敗 "+sldb.info;
+		return;
+	}
+	//有効な(被選挙権を持つ) chara_id を列挙(配列に収納) : デレステにカードがあるchara_idの一覧をつくる
+	let setCharId = new Set(), arr = await sldb.requestCardList("keys=chara_id");
+	arr.forEach( o=>{setCharId.add(o["chara_id"])} );
+
+	arr = await sldb.requestCharDetail( ...setCharId ); //問い合わせ
+	if(arr === null){
+		GET_ID("tapzone").textContent = "[ERROR] SLDB詳細リクエスト失敗";
+		return;
+	}
+	//返答から、必要な値のみ残す
+	const baseurl = new sldb.URL( sldb.__createApiPath(sldb.__typeChar,101), sldb.hostConnected );
+	for(const o of arr){
+		let p = {};
+		p["name"] = o["name"];
+		p["icon_src"] = new sldb.URL( o["icon_image_ref"], baseurl ).href; //ファイル名
+		p["icon_alt"] = o["name"] + (o["voice"].length>0 ? ` (cv. ${o["voice"]})` : "");
+
+		//一致検索用文字の配列。漢字とルビの組の配列。
+		p["arr_test"] = ((_a,_b)=>{
+			let r_ = [], i;
+			for( i in _a ){ r_.push( new TKanjiRuby(_a[i],_b[i]) ) }
+			return r_;
+		})( o["kanji_spaced"].split(/[\s・]/), o["kana_spaced"].split(/[\s・]/) );
+
+		gaIdolNames.push(p);
+	}
+	gbInitialized = true;
+	GET_ID("tapzone").textContent = "開始・終了はこのエリアをTAP";
+}
+window.addEventListener("load",init);
+
+//------------------------------------------------------------------------------
+
+//引数1の文字列が引数2の文字列を「どれくらいそれっぽく含んでいるか」割合付けて返す
+//-引数1. object:検索される側
+//-引数2. subject:検索する側
+//+返り値は0以上1以下のNumber
+function rateIncludeLike( _sObj, _sSub ){
+
+	//スプレッド演算子を使って、サロゲートペアを分解せずに文字列→文字ごとの配列変換
+	let aObj = [..._sObj], aSub = [..._sSub];
+
+	//見つかった文字の割合。
+	let scoreFound = aSub.map( ch=>(aObj.indexOf(ch)>=0?1:0) ).reduce( (p,c)=>p+c,0 );
+
+	//検索する側が１文字だったり、１文字も見つからなかったら計算打ち切り
+	if( aSub.length===1 || scoreFound===0 ){return scoreFound}
+
+	scoreFound /= aSub.length;
+
+	//どれくらい連続したか
+	let scoreOrder = aObj.map( (_ch,_idx)=>{
+		let num = aSub.indexOf(_ch) //文字->subの何文字目と一致したか
+		if( num===-1 ){return 0}
+		let score=0;
+		while( ++_idx<aObj.length && ++num<aSub.length && aObj[_idx]===aSub[num] ){
+			score++; //aObj[_idx]===aSub[num]をずらしていく
+		}
+		return score;
+	}).reduce(
+		(p,c)=>(p>c?p:c) //最大値を得る
+	) / (aSub.length-1);
+
+	return (scoreFound+scoreOrder)/2;
+}
+
+//in 認識結果の一つ
+//out 各indexの評価
+function testResultAlt( _str_alt ){
+	let ixIdol = gaIdolNames.length,
+		aEvals = new Array(ixIdol).fill(0);
+
+	while(--ixIdol >= 0){
+		let testee = gaIdolNames[ixIdol]["arr_test"], //漢字とルビの組の配列
+		    scoreGross = 0, iNext = 0, pos;
+
+		//パーツが見つかれば満点
+		//そうでなくても rateIncludeLike で部分点
+		for( let tkr of testee ){
+			if( (pos = _str_alt.indexOf(tkr.kanji, iNext) )>=0 ){
+				//あった
+				scoreGross += gcFullScore;
+				iNext = pos + tkr.kanji.length;
+			}else if( (pos = _str_alt.indexOf(tkr.ruby, iNext) )>=0 ){
+				//あった
+				scoreGross += gcFullScore;
+				iNext = pos + tkr.ruby.length;
+			}else{
+				//なかった
+				scoreGross += gcFullScore * Math.max(
+					rateIncludeLike(_str_alt, tkr.kanji),
+					rateIncludeLike(_str_alt, tkr.ruby)
+				);
+			}
+		}//loop-end_testee
+		aEvals[ixIdol] = scoreGross/testee.length;
+	}//loop-end_ixIdol
+
+	return aEvals;
+}
+
+//解析と結果
+function analyzeGoodRecogs( _arr_recogs ){
+	let totalScore = new Array(gaIdolNames.length).fill(0), aShorten = [], strHtml="";
+	while( _arr_recogs.length > 0 ){
+		let recog = _arr_recogs.pop();
+		let tmp = testResultAlt(recog.transcript).map( v=>v*recog.confidence );
+		for( let i in totalScore ){
+			totalScore[i] += tmp[i];
+		}
+	}
+	for( let i in totalScore ){
+		if( totalScore[i] === 0 ) continue;
+		aShorten.push( { index:i, score:totalScore[i] } );
+	}
+	aShorten.sort( (a,b)=>b.score-a.score ); //降順。
+
+	for( let i in aShorten ){
+		let idol = gaIdolNames[aShorten[i]["index"]];
+		strHtml += `${i+1}. ${idol["name"]} (${aShorten[i]["score"]}点)<br>`
+	}
+
+	GET_ID("results").innerHTML = strHtml;
+}
+
+//判定関数に投げて結果をテーブル表示
+function dbg_testTRA( _str_alt ){
+	let aEvals = testResultAlt(_str_alt), aShorten = [];
+	for( let i in aEvals ){
+		if( aEvals[i] === 0 ) continue;
+		aShorten.push( { name:gaIdolNames[i]["name"], score:aEvals[i] } );
+	}
+	aShorten.sort( (a,b)=>b.score-a.score ); //降順。
+	console.table(aShorten);
+}
+
+</script>
+</body>
+</html>
