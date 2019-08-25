@@ -17,9 +17,9 @@
 <h2>音声でアイドル選択する機能……の下準備</h2>
 <p>使用可否の参考：<a href="https://caniuse.com/#feat=speech-recognition">Can I use | Speech Recognition API</a></p>
 <!-- https://12ange.github.io/playWithSLAPI/demo_wsrecog.htm -->
-<div id="tapzone"></div>
-<div id="results">結果はここに表示(毎回上書き)</div>
-<div id="recogs">結果はここに表示(毎回上書き)</div>
+<div id="tapzone">hold on... please wait...</div>
+<div id="results">判定結果表示(毎回上書き)</div>
+<div id="recogs">認識結果表示(毎回上書き)</div>
 
 <script>
 "use strict";
@@ -267,7 +267,7 @@ function analyzeGoodRecogs( _arr_recogs ){
 
 	for( let i in aShorten ){
 		let idol = gaIdolNames[aShorten[i]["index"]];
-		strHtml += `${i+1}. ${idol["name"]} (${aShorten[i]["score"]}点)<br>`
+		strHtml += `${i-0+1}. ${idol["name"]} (${aShorten[i]["score"].toFixed(3)}点)<br>`
 	}
 
 	GET_ID("results").innerHTML = strHtml;
