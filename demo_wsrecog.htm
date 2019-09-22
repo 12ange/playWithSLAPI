@@ -48,32 +48,25 @@ wsrecog.maxAlternatives = 99;
 
 wsrecog.addEventListener("result", _event=>{
 	//音声認識結果イベント。型は xSpeechRecognitionEvent
-	//.result は認識結果リスト。
-	//.result.lengthが結果件数
-	//.result[N] は認識結果。
-	//.result[N].isFinal が認識処理完了フラグ
-	//.result[N].length が認識選択肢 alternative の数
-	//.result[N][M] が認識選択肢。
-	//.result[N][M].transcript が認識結果文
-	//.result[N][M].confidence が信頼度
-	const rcgnList = _event.results;
-	let goodRecogs = [],
-		textResult = `[OK] 認識結果 ${rcgnList.length}件<br>`;
+	//.results は認識結果リスト。
+	//.results.lengthが結果件数
+	//.results[N] は認識結果。型は xSpeechRecognitionResultList
+	//.results[N].isFinal が認識処理完了フラグ
+	//.results[N].length が認識選択肢 alternative の数
+	//.results[N][M] が認識選択肢。
+	//.results[N][M].transcript が認識結果文
+	//.results[N][M].confidence が信頼度
 
-	for(let i=0; i<rcgnList.length; i++){
-		let altntvs = rcgnList[i];
-		textResult += `結果#${i+1}, 選択肢 ${altntvs.length}個&gt;<br>`;
-		for(let j=0; j<altntvs.length; j++){
-			textResult += `その${j+1}; ${altntvs[j].transcript} (${100*altntvs[j].confidence}%)<br>`;
-			if( altntvs[j].confidence > 0 ){
-				goodRecogs.push(altntvs[j]); //評価がある認識結果は保存される
-			}
-		}
-		textResult += `&lt;結果#${i+1}<br>`;
+	//一番後ろの、認識処理完了した結果を対象とする
+	let i = _event.results.length;
+	while(--i >= 0){
+		if(_event.results[i].isFinal){break}
 	}
-	GET_ID("recogs").innerHTML = textResult;
-
-	analyzeGoodRecogs(goodRecogs);
+	if( i < 0 ){
+		//全て認識処理完了してない
+	}else{
+		analyzeGoodRecogs(BuildRecogResult(_event.results[i]));
+	}
 });
 
 wsrecog.addEventListener("nomatch", _event=>{
@@ -134,15 +127,95 @@ GET_ID("tapzone").addEventListener("click",()=>{
 
 let gaIdolNames = [];
 let gbInitialized = false;
+let grexCharsIdolName = null; //アイドル名に含まれる文字
 const gcFullScore = 100;
 
 //漢字とルビの組
 class TKanjiRuby {
 	constructor( _kanji, _ruby ){
 		this.kanji = _kanji;
-		this.ruby = _ruby;
+		this.ruby_h = TKanjiRuby.NormalizeMark(_ruby); //ふりがな
+		this.ruby_k = TKanjiRuby.Hira2Kata(this.ruby_h); //フリガナ
 	}
+
+	//濁点・半濁点の統一
+	static NormalizeMark(_s){
+		return _s.replace(
+			/[\u3099\uFF9E]/g,"\u309B" //濁点の統一
+		).replace(
+			/[\u309A\uFF9F]/g,"\u309C" //半濁点の統一
+		);
+	}
+
+	//ひらがなをカタカナに変換
+	static Hira2Kata(_s){
+		//まず単純変換でカタカナに寄せる ※U+3096はヶのひらがな版。ちなみにShiftJISには無い
+		return _s.replace(
+			/[\u3041-\u3096\u309D\u309E]/g,
+			_ch=>String.fromCharCode( _ch.charCodeAt(0)+96 )
+		).replace(
+			//濁点＆半濁点が前の文字と結合できるかじっくりチェック
+			/[\u30A1-\u30F6][\u309B\u309C]/g,
+			_ss=>{
+				let ch = _ss[0], mk = _ss.charCodeAt(1) === 0x309B; //trueは濁点、falseは半濁点
+				if( ch === "ウ" && mk ){
+					return "ヴ"; //ウとヴはcodepoint上で離れているので個別対応
+				}else{
+					let li = (mk?"カキクケコサシスセソタチツテト":"")+"ハヒフヘホ";
+					if( li.includes(ch) ){
+						return String.fromCharCode( ch.charCodeAt(0)+(mk?1:2) );
+					}else{
+						return _ss;
+					}
+				}
+			}
+		);
+	}
+
+	//出現文字全部
+	getAllChar(){ return this.kanji+this.ruby_h+this.ruby_k }
 }
+
+function BuildRecogResult(_srrl){ //引数は xSpeechRecognitionResultList
+
+	let aTrans = [], aConfs = [], aPassed = [];
+	for( let o of _srrl ){
+		aTrans.push(o.transcript);
+		aConfs.push(o.confidence);
+		aPassed.push(grexCharsIdolName.test(o.transcript));
+		//aPassed に 認識結果にアイドル名に含まれる文字が一文字でも含まれているか？が入る
+	}
+
+	let nTopConf = aConfs[0];
+	if( nTopConf === aConfs.reduce((p,c)=>p+c) ){
+		//信頼度が最初の選択肢にしか割り振られていない
+		for( let i=1 ; i<aConfs.length ; i++ ){
+			//2つ目以降の信頼度を補完
+			aConfs[i] = nTopConf * (1-nTopConf)**i;
+		}
+	}
+	for( let i=aTrans.length-1 ; i >= 0 ; i-- ){ //後ろから
+		if(!aPassed[i]){
+			aTrans.splice(i,1); //抜き取る
+			aConfs.splice(i,1); //ことで、
+			aPassed.splice(i,1);//要素番号が詰まっても構わずに済む
+		}
+	}
+	for( let m = 1/aConfs.reduce((p,c)=>p+c), i=0 ; i<aConfs.length ; i++ ){
+		aConfs[i] *= m; //normalize
+	}
+
+	let myResult = [],
+	    textResult = `[OK] 認識された選択肢 ${aTrans.length}個<br>`;
+	for( let i=0 ; i<aTrans.length ; i++){
+		myResult.push( { transcript:aTrans[i], confidence:aConfs[i]} );
+		textResult += `(${i+1}) ${aTrans[i]} (${100*aConfs[i]}%)<br>`;
+	}
+	GET_ID("recogs").innerHTML = textResult;
+	return myResult;
+}
+
+//==============================================================================
 
 async function init() {
 	if( ! await sldb.connect() ){
@@ -160,6 +233,7 @@ async function init() {
 	}
 	//返答から、必要な値のみ残す
 	const baseurl = new sldb.URL( sldb.__createApiPath(sldb.__typeChar,101), sldb.hostConnected );
+	let superlongstr = "";
 	for(const o of arr){
 		let p = {};
 		p["name"] = o["name"];
@@ -169,12 +243,23 @@ async function init() {
 		//一致検索用文字の配列。漢字とルビの組の配列。
 		p["arr_test"] = ((_a,_b)=>{
 			let r_ = [], i;
-			for( i in _a ){ r_.push( new TKanjiRuby(_a[i],_b[i]) ) }
+			for( i in _a ){
+				let t = new TKanjiRuby(_a[i],_b[i]);
+				r_.push(t);
+				superlongstr += t.getAllChar(); //名前と振り仮名の文字を蒐集する。
+			}
 			return r_;
 		})( o["kanji_spaced"].split(/[\s・]/), o["kana_spaced"].split(/[\s・]/) );
-
 		gaIdolNames.push(p);
 	}
+
+	//音声認識結果除外用に使う正規表現の組み立て
+	grexCharsIdolName = new RegExp(
+		"["+[... new Set(superlongstr)].sort().join("").replace(/[\u3005\u3095-\u309F\u30F5-\u30FF]/g,"")+"]"
+		//最後に除外されているのは小さい「かカけケ」、中点、伸ばし棒、濁点・半濁点、踊り字
+	);
+	//console.log(grexCharsIdolName.source);
+
 	gbInitialized = true;
 	GET_ID("tapzone").textContent = "開始・終了はこのエリアをTAP";
 }
@@ -232,15 +317,20 @@ function testResultAlt( _str_alt ){
 				//あった
 				scoreGross += gcFullScore;
 				iNext = pos + tkr.kanji.length;
-			}else if( (pos = _str_alt.indexOf(tkr.ruby, iNext) )>=0 ){
+			}else if( (pos = _str_alt.indexOf(tkr.ruby_h, iNext) )>=0 ){
 				//あった
 				scoreGross += gcFullScore;
-				iNext = pos + tkr.ruby.length;
+				iNext = pos + tkr.ruby_h.length;
+			}else if( (pos = _str_alt.indexOf(tkr.ruby_k, iNext) )>=0 ){
+				//あった
+				scoreGross += gcFullScore;
+				iNext = pos + tkr.ruby_k.length;
 			}else{
 				//なかった
 				scoreGross += gcFullScore * Math.max(
 					rateIncludeLike(_str_alt, tkr.kanji),
-					rateIncludeLike(_str_alt, tkr.ruby)
+					rateIncludeLike(_str_alt, tkr.ruby_h),
+					rateIncludeLike(_str_alt, tkr.ruby_k),
 				);
 			}
 		}//loop-end_testee
@@ -282,6 +372,7 @@ function dbg_testTRA( _str_alt ){
 		aShorten.push( { name:gaIdolNames[i]["name"], score:aEvals[i] } );
 	}
 	aShorten.sort( (a,b)=>b.score-a.score ); //降順。
+	if(aShorten.length>30){aShorten.length=30}
 	console.table(aShorten);
 }
 
