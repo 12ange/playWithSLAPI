@@ -65,7 +65,7 @@ wsrecog.addEventListener("result", _event=>{
 	if( i < 0 ){
 		//全て認識処理完了してない
 	}else{
-		analyzeGoodRecogs(BuildRecogResult(_event.results[i]));
+		analyzeMyRecogs(MakeMyRecogResult(_event.results[i]));
 	}
 });
 
@@ -176,42 +176,38 @@ class TKanjiRuby {
 	getAllChar(){ return this.kanji+this.ruby_h+this.ruby_k }
 }
 
-function BuildRecogResult(_srrl){ //引数は xSpeechRecognitionResultList
+//SpeechRecognitionResultList(引数)から認識結果を構成する
+function MakeMyRecogResult(_srrl){
+	let aTrans=[], aConfs=[], sum=0;
 
-	let aTrans = [], aConfs = [], aPassed = [];
+	//複写しつつ……
 	for( let o of _srrl ){
-		aTrans.push(o.transcript);
+		aTrans.push( grexCharsIdolName.test(o.transcript) ? o.transcript : "" );
+		//アイドル名に含まれる文字が一文字も含まれていないなら「除外」する
 		aConfs.push(o.confidence);
-		aPassed.push(grexCharsIdolName.test(o.transcript));
-		//aPassed に 認識結果にアイドル名に含まれる文字が一文字でも含まれているか？が入る
+		sum += o.confidence; //信頼度sum
 	}
+	let i = 0, b = aConfs[0]===sum; //信頼度が最初のみかどうか
 
-	let nTopConf = aConfs[0];
-	if( nTopConf === aConfs.reduce((p,c)=>p+c) ){
-		//信頼度が最初の選択肢にしか割り振られていない
-		for( let i=1 ; i<aConfs.length ; i++ ){
-			//2つ目以降の信頼度を補完
-			aConfs[i] = nTopConf * (1-nTopConf)**i;
+	//信頼度を加工する
+	for( sum=0 ; i<aConfs.length ; sum+=aConfs[i++] ){
+		if( aTrans[i]==="" ){
+			aConfs[i]=0; //文字列側が「除外」になっていれば０
+		}else if( b ){
+			aConfs[i] = aConfs[0] * (1-aConfs[0])**i; //「信頼度が最初のみ」なら補完する
 		}
 	}
-	for( let i=aTrans.length-1 ; i >= 0 ; i-- ){ //後ろから
-		if(!aPassed[i]){
-			aTrans.splice(i,1); //抜き取る
-			aConfs.splice(i,1); //ことで、
-			aPassed.splice(i,1);//要素番号が詰まっても構わずに済む
-		}
-	}
-	for( let m = 1/aConfs.reduce((p,c)=>p+c), i=0 ; i<aConfs.length ; i++ ){
-		aConfs[i] *= m; //normalize
-	}
+	sum = 1/sum; //補正倍率
 
-	let myResult = [],
-	    textResult = `[OK] 認識された選択肢 ${aTrans.length}個<br>`;
-	for( let i=0 ; i<aTrans.length ; i++){
+	let myResult=[], textResult="";
+	for( i=0 ; i<aTrans.length ; i++){
+		//小さすぎる信頼度なら除外していいかも：とりあえず1e-6(百万分の一)
+		aConfs[i] *= sum;
+		if( aConfs[i] < 1e-6 )continue;
 		myResult.push( { transcript:aTrans[i], confidence:aConfs[i]} );
 		textResult += `(${i+1}) ${aTrans[i]} (${100*aConfs[i]}%)<br>`;
 	}
-	GET_ID("recogs").innerHTML = textResult;
+	GET_ID("recogs").innerHTML = `[OK] 受容された選択肢 ${myResult.length}個、除外された選択肢 ${aTrans.length-myResult.length}個<br>${textResult}`;
 	return myResult;
 }
 
@@ -341,8 +337,9 @@ function testResultAlt( _str_alt ){
 }
 
 //解析と結果
-function analyzeGoodRecogs( _arr_recogs ){
-	let totalScore = new Array(gaIdolNames.length).fill(0), aShorten = [], strHtml="";
+function analyzeMyRecogs( _arr_recogs ){
+	//集計
+	let totalScore = new Array(gaIdolNames.length).fill(0);
 	while( _arr_recogs.length > 0 ){
 		let recog = _arr_recogs.pop();
 		let tmp = testResultAlt(recog.transcript).map( v=>v*recog.confidence );
@@ -350,31 +347,29 @@ function analyzeGoodRecogs( _arr_recogs ){
 			totalScore[i] += tmp[i];
 		}
 	}
+	//まとめつつ最高点を取り出しておく
+	let aShorten=[], hiScore=0;
 	for( let i in totalScore ){
 		if( totalScore[i] === 0 ) continue;
 		aShorten.push( { index:i, score:totalScore[i] } );
+		hiScore = Math.max(hiScore,totalScore[i]);
 	}
-	aShorten.sort( (a,b)=>b.score-a.score ); //降順。
+	//評価点で選択肢を絞り込む。(1.絶対値が低すぎる or 2.最高値に比べて小さい)
+	//- 1は20~10点のどこか、2はhalf~quarterのどこか => 今のところ(100/6,最高値/3)
+	let nPassline = Math.max(50,hiScore)/3;
+	aShorten = aShorten.filter( o => o.score>=nPassline ).sort( (a,b)=>b.score-a.score ); //降順。
 
+	//表示
+	let strHtml="";
 	for( let i in aShorten ){
-		let idol = gaIdolNames[aShorten[i]["index"]];
-		strHtml += `${i-0+1}. ${idol["name"]} (${aShorten[i]["score"].toFixed(3)}点)<br>`
+		let idol = gaIdolNames[aShorten[i].index];
+		strHtml += `${i-0+1}. ${idol["name"]} (${aShorten[i].score.toFixed(3)}点)<br>`
 	}
-
 	GET_ID("results").innerHTML = strHtml;
 }
 
-//判定関数に投げて結果をテーブル表示
-function dbg_testTRA( _str_alt ){
-	let aEvals = testResultAlt(_str_alt), aShorten = [];
-	for( let i in aEvals ){
-		if( aEvals[i] === 0 ) continue;
-		aShorten.push( { name:gaIdolNames[i]["name"], score:aEvals[i] } );
-	}
-	aShorten.sort( (a,b)=>b.score-a.score ); //降順。
-	if(aShorten.length>30){aShorten.length=30}
-	console.table(aShorten);
-}
+//認識機構全体をチェックする(信頼度,……認識文字列の羅列)。divが更新される
+function dbg_wholeRecog(p,...a){let o=[];for(let i in a){o.push({transcript:a[i],confidence:(i==0?p:0)})};analyzeMyRecogs(MakeMyRecogResult(o))}
 
 </script>
 </body>
