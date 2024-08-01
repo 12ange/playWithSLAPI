@@ -26,7 +26,6 @@ input[type="checkbox"]:not(checked)+img{opacity:.3}
 </style></head><body><script>
 
 "use strict";
-const NEW_TAG = tag => document.createElement(tag);
 
 // AudioContext初期化 by Mozilla
 const gAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -125,7 +124,7 @@ class tIdolLoader {
 		// ++非同期関数++
 		const promiseGetImage = ( _href )=>{
 			return new Promise( (resolve,reject)=>{
-				let hie = NEW_TAG("img");
+				let hie = document.createElement("img");
 				hie.onload = ()=>{ resolve(hie); };
 				hie.onerror = (e)=>{ reject(e); };
 				hie.src = _href;
@@ -238,11 +237,11 @@ function cbIdolLoader( _objILr ){
 
 //リソース読み出し前処理
 function preFetch(){
-	let h = NEW_TAG("h1");
+	let h = document.createElement("h1");
 	h.textContent = document.title;
 	document.body.appendChild( h );
-	document.body.appendChild( divLog = NEW_TAG("div") );
-	document.body.appendChild( divOutput = NEW_TAG("div") );
+	document.body.appendChild( divLog = document.createElement("div") );
+	document.body.appendChild( divOutput = document.createElement("div") );
 	//divOutput.appendChild(); 待機アニメーション予定地
 	if( window.indexedDB ){
 		divLog.textContent = msgPlzHoldOn;
@@ -267,7 +266,7 @@ function afterFetch(){
 	});
 	divLog.textContent = `${msgFineFetch} ${arIdolDatas.length} ${msgFineFetch2}`;
 	//全スクリーン共通の配置準備
-	document.body.appendChild( divInput = NEW_TAG("div") );
+	document.body.appendChild( divInput = document.createElement("div") );
 	divOutput.className = "quiz-output";
 	divInput.className = "quiz-input";
 	divLog.className = "quiz-log"; //ログメッセージ表示部が目立たなくなる(これ以降変化しないが、隠すには惜しい情報)
@@ -295,13 +294,13 @@ let HSEquiz, HSEanswer; //HSE is <span>
 let objChoice = {};
 function init_objChoice(_aIdols){
 	//初期化処理
-	let d = NEW_TAG("div");
+	let d = document.createElement("div");
 	d.className = "gridchoice";
 	d.addEventListener("change",objChoice);
 	let g = [];
 	for( let i=0 ; i<_aIdols.length ; ++i ){
-		let l = d.appendChild( NEW_TAG("label") );
-		let c = l.appendChild( NEW_TAG("input") );
+		let l = d.appendChild( document.createElement("label") );
+		let c = l.appendChild( document.createElement("input") );
 		c.type = "checkbox";
 		c.value = i;
 		g.push(c);
@@ -371,7 +370,7 @@ function initScreenElements(){
 	init_objChoice(arIdolDatas);
 
 	//再生ボタン。
-	HBEplay = NEW_TAG("button");
+	HBEplay = document.createElement("button");
 	HBEplay.className = "imascgss";
 	HBEplay.funcChangeEnable = (b)=>{
 		HBEplay.disabled = !b;
@@ -380,7 +379,7 @@ function initScreenElements(){
 	HBEplay.onclick = playQuizSound;
 
 	//回答ボタン。
-	HBEanswer = NEW_TAG("button");
+	HBEanswer = document.createElement("button");
 	HBEanswer.className = "imascgss";
 	HBEanswer.funcChangeEnable = (b)=>{
 		HBEanswer.disabled = !b;
@@ -389,8 +388,8 @@ function initScreenElements(){
 	HBEanswer.onclick = judgeAnswer;
 
 	//情報表示用span
-	HSEquiz = NEW_TAG("span");
-	HSEanswer = NEW_TAG("span");
+	HSEquiz = document.createElement("span");
+	HSEanswer = document.createElement("span");
 }
 
 //ノード配置のクリア
@@ -406,11 +405,11 @@ function clearDivIO(){
 function setupTitleScreen(){
 	clearDivIO();
 
-	const p = NEW_TAG("span");
+	const p = document.createElement("span");
 	p.textContent = "モード選択(予定地)";
 	divOutput.appendChild(p);
 
-	const b = NEW_TAG("button");
+	const b = document.createElement("button");
 	b.className = "imascgss";
 	b.textContent = "START";
 	b.onclick = ()=>{
@@ -427,17 +426,17 @@ function setupQuizScreen(){
 	(n=>{ if( n.parentNode ){ n.parentNode.removeChild(n); } })(divLog);
 
 	//TODO:使うHTMLElementたちはもっと前に作れるし、参照をどこかで取っておける
-	const p = NEW_TAG("span");
+	const p = document.createElement("span");
 	divOutput.appendChild(p);
-	divOutput.appendChild( NEW_TAG("br") );
+	divOutput.appendChild( document.createElement("br") );
 	divOutput.appendChild( HSEquiz );
-	divOutput.appendChild( NEW_TAG("br") );
+	divOutput.appendChild( document.createElement("br") );
 	divOutput.appendChild(HBEplay);
 
 	divInput.parentNode.insertBefore(objChoice.container,divInput);
 
 	divInput.appendChild(HSEanswer);
-	divInput.appendChild( NEW_TAG("br") );
+	divInput.appendChild( document.createElement("br") );
 	divInput.appendChild(HBEanswer);
 
 	countQuiz = countCorrect = countWrong = 0;
