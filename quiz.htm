@@ -6,7 +6,7 @@
 <title>デレステタイトルコール当てクイズ</title>
 <script async src="./idb.js"></script>
 <script async src="./cachey.js"></script>
-<link rel="stylesheet" type="text/css" href="imascgss.css">
+<link rel="stylesheet" type="text/css" href="../imasCGg4u/imascgss.css">
 <style>
 
 /* 共通設定 */
@@ -27,7 +27,6 @@ input[type="checkbox"]:not(checked)+img{opacity:.3}
 
 "use strict";
 const NEW_TAG = tag => document.createElement(tag);
-const GET_ID = id => document.getElementById(id);
 
 // AudioContext初期化 by Mozilla
 const gAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -229,7 +228,7 @@ function cbIdolLoader( _objILr ){
 	//処理が終わったので、配列から取り除く
 	const idxILs = arIdolLoaders.indexOf( _objILr );
 	if( idxILs < 0 ) throw new Error("cbIdolLoader() / unknown tIdolLoader object found");
-	arIdolLoaders.splice( idxILs,　1　);
+	arIdolLoaders.splice( idxILs, 1 );
 
 	//状態更新(反映)処理を呼ぶ
 	//console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
