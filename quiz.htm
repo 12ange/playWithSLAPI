@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,minimum-scale=1">
-<title>デレステタイトルコール当てクイズ</title>
+<title>デレステタイトルコール遊び場</title>
 <script async src="./idb.js"></script>
 <script async src="./cachey.js"></script>
 <link rel="stylesheet" type="text/css" href="../imasCGg4u/imascgss.css">
@@ -12,29 +12,70 @@
 /* 共通設定 */
 body{text-align:center}
 h1{margin:.5em 0;font-size: 5.75vw}
+/* ボタンの表示内容を有効無効で変えるための仕込み */
+button:not(:disabled)>.show-disabled,
+button:disabled>.hide-disabled{display:none}
 /* アイドル選択部 */
-.gridchoice{display:inline-flex;flex-wrap:wrap;max-height:50vh;overflow-y:scroll}
+#idol-choice{display:inline-flex;flex-wrap:wrap;max-height:50vh;overflow-y:scroll}
 label{cursor:pointer;margin:4px 3px;padding:0 4px}
 input[type="checkbox"]{display:none}
 input[type="checkbox"]:checked+img{opacity:1}
 input[type="checkbox"]:not(checked)+img{opacity:.3}
 /*その他、実験用*/
-.quiz-log{color:silver}
-.quiz-input{border:1px dashed green;margin:.3em;padding:.2em}
-.quiz-output{border:1px dotted cyan;margin:.3em;padding:.2em}
+#div-log{color:silver}
+#div-input{border:1px dashed green;margin:.3em;padding:.2em}
+#div-output{border:1px dotted cyan;margin:.3em;padding:.2em}
 
-</style></head><body><script>
+</style></head><body>
 
+<template id="screen-top">
+	<h1>デレステタイトルコール遊び場</h1><!-- document.titleに反映する -->
+	<div id="div-log"></div>
+	<div id="div-output"></div>
+	<div id="div-input">
+		<button id="gotoQuiz" class="imascgss" disabled>クイズ</button>
+		<button id="gotoListen" class="imascgss" disabled>試聴室</button>
+	</div>
+</template>
+
+<template id="screen-museum">
+	<h1>デレステタイトルコール試聴室</h1>
+</template>
+
+<template id="screen-quiz">
+	<h1>デレステタイトルコール当てクイズ</h1>
+	<div id="div-output">
+		<span id="HSEresult"></span><br>
+		<span id="HSEquiz"></span><br>
+		<button class="imascgss" id="HBEplay">
+			<span class="hide-disabled">Play</span>
+			<span class="show-disabled">&gt;&gt;&gt;&gt;</span>
+		</button>
+	</div>
+	<div id="idol-choice"></div>
+	<div id="div-input">
+		<span id="HSEanswer"></span><br>
+		<button class="imascgss" id="HBEanswer">
+			<span class="hide-disabled">Answer</span>
+			<span class="show-disabled">------</span>
+		</button>
+	</div>
+</template>
+
+<template id="icon-idol">
+	<label>
+		<input type="checkbox">
+		<img alt="NIL" width="50" height="50">
+	</label>
+</template>
+
+<script>
 "use strict";
 
 // AudioContext初期化 by Mozilla
 const gAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
 // Webkit/blink系ブラウザは接頭辞が必要、Safariは「window.」をつけないと動かない
 const gURL = window.URL || window.webkitURL; //URLも同様らしいのでそうしておく
-
-const msgPlzHoldOn = "⌛リソース取得中..."; //PLEASE HOLD ON
-const msgFineFetch = "✅️リソース取得完了。タイトルコール実装済みアイドルは";
-const msgFineFetch2 = "人です。";
 
 const hostStarlightDB = "https://starlight.kirara.ca/";
 const pathCharList = "/api/v1/list/card_t?keys=chara_id"; //※char_tが500を返すのでcard_tで代用
@@ -52,9 +93,6 @@ const gAudioCompNode = (c=>{
 
 let arIdolDatas = [];
 let arIdolLoaders = [];
-let divLog = null;
-let divInput = null;
-let divOutput = null;
 
 class tIdol {
 	//クラス用定数
@@ -222,7 +260,7 @@ function cbIdolLoader( _objILr ){
 
 	//インスタンスを取り出せれば配列に登録。
 	let objIdol = _objILr.standIdol();
-	if( objIdol ){ arIdolDatas.push( objIdol ); }
+	if( objIdol instanceof tIdol ){ arIdolDatas.push( objIdol ); }
 
 	//処理が終わったので、配列から取り除く
 	const idxILs = arIdolLoaders.indexOf( _objILr );
@@ -235,25 +273,42 @@ function cbIdolLoader( _objILr ){
 	if( arIdolLoaders.length == 0 ){ afterFetch(); }
 }
 
+//<template id="引数">のクローンを得る
+function getCloneOfTemplateById(id){
+	const tem = document.querySelector(`template#${id}`);
+	if(tem instanceof HTMLTemplateElement){
+		const cln = tem.content.cloneNode(true)
+		if(cln instanceof DocumentFragment){
+			return cln
+		}else{
+			throw new Error(`cloning made wrong with template#${id}.`)
+		}
+	}else{
+		throw new Error(`template#${id} is not found.`)
+	}
+}
+
 //リソース読み出し前処理
 function preFetch(){
-	let h = document.createElement("h1");
-	h.textContent = document.title;
-	document.body.appendChild( h );
-	document.body.appendChild( divLog = document.createElement("div") );
-	document.body.appendChild( divOutput = document.createElement("div") );
-	//divOutput.appendChild(); 待機アニメーション予定地
-	if( window.indexedDB ){
-		divLog.textContent = msgPlzHoldOn;
-	}else{
-		divLog.textContent = msgPlzHoldOn + "！NO-INDEXED-DATABASE";
+	const clone = getCloneOfTemplateById("screen-top")
+
+	let h = clone.querySelector("h1");
+	document.title = h?.textContent ?? document.title;
+	let d = clone.querySelector("#div-log");
+	if(d){
+		d.textContent = `⌛リソース取得開始${window.indexedDB ? "" : " !! NO-INDEXED-DATABASE"}`;
 	}
+
+	document.body.appendChild(clone);
 	asyncFetchResources();
 }
 
 //リソース読み出し中処理
 function progressFetch(){
-	divLog.textContent = `${msgPlzHoldOn} ${ 100 * arIdolDatas.length / (arIdolDatas.length+arIdolLoaders.length) |0 }%`;
+	let d = document.querySelector("#div-log");
+	if(d){
+		d.textContent = `⌛リソース取得中... ${ 100 * arIdolDatas.length / (arIdolDatas.length+arIdolLoaders.length) |0 }%`;
+	}
 }
 
 //リソース読み出し後処理
@@ -264,13 +319,11 @@ function afterFetch(){
 		let diffType = typeIndex.indexOf(fore.type) - typeIndex.indexOf(back.type);
 		return diffType!==0 ? diffType : fore.cid - back.cid;
 	});
-	divLog.textContent = `${msgFineFetch} ${arIdolDatas.length} ${msgFineFetch2}`;
+	let d = document.querySelector("#div-log");
+	if(d){
+		d.textContent = `✅️リソース取得完了。タイトルコール実装済みアイドルは ${arIdolDatas.length} 人です。`;
+	}
 	//全スクリーン共通の配置準備
-	document.body.appendChild( divInput = document.createElement("div") );
-	divOutput.className = "quiz-output";
-	divInput.className = "quiz-input";
-	divLog.className = "quiz-log"; //ログメッセージ表示部が目立たなくなる(これ以降変化しないが、隠すには惜しい情報)
-	initScreenElements();
 	setupTitleScreen();
 }
 
@@ -285,28 +338,50 @@ let indicesQuiz;
 let countQuiz;
 let countCorrect;
 let countWrong;
+let countStreak;
 //クイズに使うHTMLElement
-let HBEplay, HBEanswer;   //HBE is <button>
+let HBEplay, HBEanswer; //HBE is <button>
 let HSEquiz, HSEanswer; //HSE is <span>
 //TODO:オブジェクトでひとまとめに……する？
 
 //アイドル選択は one-and-only Object
 let objChoice = {};
-function init_objChoice(_aIdols){
+function init_objChoice(_dom, _aIdols){
+	if(!( _dom instanceof DocumentFragment && _aIdols instanceof Array )){
+		throw "init_objChoice() : bad args"
+	}
+	
 	//初期化処理
-	let d = document.createElement("div");
-	d.className = "gridchoice";
+	let d = _dom.querySelector("div#idol-choice")
+	if(!d){ throw new Error("div#idol-choice is not found.") }
 	d.addEventListener("change",objChoice);
+
+	const tem = document.querySelector("template#icon-idol")
+	if(!(tem instanceof HTMLTemplateElement)){
+		throw new Error("template#icon-idol is not found.")
+	}
+
 	let g = [];
 	for( let i=0 ; i<_aIdols.length ; ++i ){
-		let l = d.appendChild( document.createElement("label") );
-		let c = l.appendChild( document.createElement("input") );
-		c.type = "checkbox";
-		c.value = i;
-		g.push(c);
+		const cln = tem.content.cloneNode(true);
+		if(!(cln instanceof DocumentFragment)){
+			throw new Error("cloning made wrong")
+		}
+		let l = cln.querySelector("label");
+		let c = cln.querySelector("input");
+		if(c){
+			c.value = i
+			g.push(c);
+		}
 		const e = _aIdols[i][tIdol.pNmIMGicon];
-		e.width = e.height = 50; //IMGの大きさを50[px]に、直接変更
-		l.appendChild(e);
+		if(e instanceof HTMLImageElement){
+			e.width = e.height = 50; //IMGの大きさを50[px]に、直接変更
+			if(l){
+				l.lastElementChild.remove();
+				l.appendChild(e);
+			}
+		}
+		d.appendChild(cln);
 	}
 	//変数＆関数登録
 	objChoice.aIdols = _aIdols; //参照元tIdol配列
@@ -358,106 +433,89 @@ function init_objChoice(_aIdols){
 	};
 };
 //使い方。
-//init_objChoice( arIdolDatas ) は initScreenElements で呼ばせる
 //解答欄のHTMLElementTreeは objChoice.container にある
 //問題準備ができたら objChoice.ready( 正解の配列.length ) で解答欄リセット
 //選ばれた数は objChoice.choicedIdolIndices.length
 //正誤判定は objChoice.choicedIdolIndices と正解の配列の内容物をcompare
 
-//以降の画面で使われるHTMLElement群の初期化
-function initScreenElements(){
-	//アイドル選択。
-	init_objChoice(arIdolDatas);
-
-	//再生ボタン。
-	HBEplay = document.createElement("button");
-	HBEplay.className = "imascgss";
-	HBEplay.funcChangeEnable = (b)=>{
-		HBEplay.disabled = !b;
-		HBEplay.textContent = b ? "PLAY" : ">>>>";
-	};
-	HBEplay.onclick = playQuizSound;
-
-	//回答ボタン。
-	HBEanswer = document.createElement("button");
-	HBEanswer.className = "imascgss";
-	HBEanswer.funcChangeEnable = (b)=>{
-		HBEanswer.disabled = !b;
-		HBEanswer.textContent = b ? "ANSWER" : "------";
-	};
-	HBEanswer.onclick = judgeAnswer;
-
-	//情報表示用span
-	HSEquiz = document.createElement("span");
-	HSEanswer = document.createElement("span");
-}
-
 //ノード配置のクリア
 function clearDivIO(){
-	const detach = n=>{ while(n.lastChild){ n.removeChild(n.lastChild); } };
-	const unparent = n=>{ if( n.parentNode ){ n.parentNode.removeChild(n); } };
-	detach(divOutput);
-	detach(divInput);
-	unparent(objChoice.container);
+	while(true){
+		const e = document.body.lastElementChild;
+		if( e instanceof HTMLScriptElement ){break;}
+		e?.remove();
+	}
 }
 
 //タイトル画面構成
 function setupTitleScreen(){
-	clearDivIO();
-
-	const p = document.createElement("span");
-	p.textContent = "モード選択(予定地)";
-	divOutput.appendChild(p);
-
-	const b = document.createElement("button");
-	b.className = "imascgss";
-	b.textContent = "START";
-	b.onclick = ()=>{
-		gAudioCtx.resume().then( setupQuizScreen );
-		//Chrome 66 以降、ページ読み込み時に生成されるAudioContextの初期が"suspend"に(＝いきなり音が鳴りださなくなる)
-		//その応手としてボタンクリックなどが行われたらresume().then(action)。こっちの方が行儀がいい。
-	};
-	divInput.appendChild(b);
+	const d = document.querySelector("#div-output");
+	if(d){
+		d.textContent = "モード選択(予定地)";
+	}
+	const b = document.querySelector("#gotoQuiz");
+	if(b instanceof HTMLButtonElement){
+		b.addEventListener("click",
+			//Chrome 66 以降、ページ読み込み時に生成されるAudioContextの初期が"suspend"に(＝いきなり音が鳴りださなくなる)
+			//その対応として入力イベント処理中にaudctx.resume().then(action)。こっちの方が行儀がいい。
+			gAudioCtx.resume().then( ()=>{
+				setupQuizScreen();
+			})
+		);
+		b.disabled = false;
+	}
 }
 
 //クイズ画面構成
 function setupQuizScreen(){
+	//以降の画面で使われるHTMLElement群の初期化
+	const clone = getCloneOfTemplateById("screen-quiz")
+
+	init_objChoice(clone, arIdolDatas); //アイドル選択。
+
+	//再生ボタン。
+	HBEplay = clone.querySelector("button#HBEplay");
+	if(HBEplay instanceof HTMLButtonElement){
+		HBEplay.addEventListener("click",playQuizSound)
+	}
+	//回答ボタン。
+	HBEanswer = clone.querySelector("button#HBEanswer");
+	if(HBEanswer instanceof HTMLButtonElement){
+		HBEanswer.addEventListener("click",judgeAnswer)
+	}
+	//情報表示用span
+	HSEquiz = clone.querySelector("span#HSEquiz");
+	HSEanswer = clone.querySelector("span#HSEanswer");
+
+	//objChoice.container
+
 	clearDivIO();
-	(n=>{ if( n.parentNode ){ n.parentNode.removeChild(n); } })(divLog);
+	document.body.appendChild(clone);
 
-	//TODO:使うHTMLElementたちはもっと前に作れるし、参照をどこかで取っておける
-	const p = document.createElement("span");
-	divOutput.appendChild(p);
-	divOutput.appendChild( document.createElement("br") );
-	divOutput.appendChild( HSEquiz );
-	divOutput.appendChild( document.createElement("br") );
-	divOutput.appendChild(HBEplay);
-
-	divInput.parentNode.insertBefore(objChoice.container,divInput);
-
-	divInput.appendChild(HSEanswer);
-	divInput.appendChild( document.createElement("br") );
-	divInput.appendChild(HBEanswer);
-
-	countQuiz = countCorrect = countWrong = 0;
+	countQuiz = countCorrect = countWrong = countStreak = 0;
 	makeQuiz();
 }
 
 //出題(準備)する
 function makeQuiz(){
-	divOutput.firstChild.textContent = `第 ${++countQuiz} 問 / 正 ${countCorrect}-${countWrong} 誤`;
+	const elm = document.querySelector("span#HSEresult");
+	if(elm){
+		elm.textContent = `第 ${++countQuiz} 問 / 正 ${countCorrect}-${countWrong} 誤${
+			countStreak<2 ? "" : (" !! "+countStreak+" COMBO")
+		}`;
+	}
 	// ○-×日本式, ✓-✗米国式
 	indicesQuiz = ( (_arr,_cnt)=>{
 		let r = [], k = [..._arr.keys()]; //キーすなわち添え字のイテレータ　をスプレッド演算子で全展開
 		while( r.length < _cnt ){ r.push( ...k.splice( (Math.random()*k.length)|0, 1 ) ); }
 		return r;
-	} )(arIdolDatas, (countQuiz%5)?1:2 ); //5問ごとに2人同時に(experimental)
+	} )(arIdolDatas, (countStreak>=10)?2:1 ); //10問以上連続正解すると2人同時に(experimental)
 
 	//解答欄準備
 	objChoice.ready(indicesQuiz.length);
 	//ボタンを使用可能にする
-	HBEplay.funcChangeEnable(true);
-	HBEanswer.funcChangeEnable(false);
+	HBEplay.disabled = false;
+	HBEanswer.disabled = true;
 }
 
 //Promise版setTimeout(遅延時間[ms])
@@ -482,22 +540,28 @@ function playQuizSound(){
 	}
 
 	//ボタンを使用不能にする
-	HBEplay.funcChangeEnable(false);
-	promiseSetTimeout( Math.max(...dur)*1e3 ).then(
-		()=>{HBEanswer.funcChangeEnable(true);} //再生終了時間を待ってから
-	);
+	HBEplay.disabled = true;
+	promiseSetTimeout( Math.max(...dur)*1e3 ).then( ()=>{
+		HBEanswer.disabled = false;
+	}); //再生終了時間を待ってから
 }
 
 //正誤判定
 function judgeAnswer(){
-	HBEanswer.funcChangeEnable(false);
+	HBEanswer.disabled = true;
 	const bJudge = ((_x,_y)=>{
 		if(_x.length !== _y.length) return false;
 		for( let oy of _y ){ if( _x.indexOf(oy) < 0 ){ return false; } }
 		return true; //つまり、長さが同じで一方の全要素が他方にも含まれていれば真
 	})(indicesQuiz, objChoice.choicedIdolIndices);
 
-	bJudge ? ++countCorrect : ++countWrong ;
+	if(bJudge){
+		++countCorrect;
+		++countStreak;
+	}else{
+		++countWrong;
+		countStreak = 0;
+	}
 
 	//本来は正誤表示を出し、待機して次の問題or前の画面へ
 	console.log(
