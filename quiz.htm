@@ -455,13 +455,11 @@ function setupTitleScreen(){
 	}
 	const b = document.querySelector("#gotoQuiz");
 	if(b instanceof HTMLButtonElement){
-		b.addEventListener("click",
+		b.addEventListener("click", ()=>{
 			//Chrome 66 以降、ページ読み込み時に生成されるAudioContextの初期が"suspend"に(＝いきなり音が鳴りださなくなる)
 			//その対応として入力イベント処理中にaudctx.resume().then(action)。こっちの方が行儀がいい。
-			gAudioCtx.resume().then( ()=>{
-				setupQuizScreen();
-			})
-		);
+			gAudioCtx.resume().then( setupQuizScreen )
+		});
 		b.disabled = false;
 	}
 }
