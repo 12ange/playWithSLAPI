@@ -26,6 +26,8 @@ input[type="checkbox"]:not(checked)+img{opacity:.3}
 #div-input{border:1px dashed green;margin:.3em;padding:.2em}
 #div-output{border:1px dotted cyan;margin:.3em;padding:.2em}
 
+span.strong{background-color:black;color:white;font-weight:bold}
+
 </style></head><body>
 
 <template id="screen-top">
@@ -45,17 +47,17 @@ input[type="checkbox"]:not(checked)+img{opacity:.3}
 <template id="screen-quiz">
 	<h1>デレステタイトルコール当てクイズ</h1>
 	<div id="div-output">
-		<span id="HSEresult"></span><br>
-		<span id="HSEquiz"></span><br>
-		<button class="imascgss" id="HBEplay">
+		<span id="span-result"></span><br>
+		<span id="span-quiz"></span><br>
+		<button class="imascgss" id="button-play">
 			<span class="hide-disabled">Play</span>
 			<span class="show-disabled">&gt;&gt;&gt;&gt;</span>
 		</button>
 	</div>
 	<div id="idol-choice"></div>
 	<div id="div-input">
-		<span id="HSEanswer"></span><br>
-		<button class="imascgss" id="HBEanswer">
+		<span id="span-answer"></span><br>
+		<button class="imascgss" id="button-answer">
 			<span class="hide-disabled">Answer</span>
 			<span class="show-disabled">------</span>
 		</button>
@@ -339,9 +341,6 @@ let countQuiz;
 let countCorrect;
 let countWrong;
 let countStreak;
-//クイズに使うHTMLElement
-let HBEplay, HBEanswer; //HBE is <button>
-let HSEquiz, HSEanswer; //HSE is <span>
 //TODO:オブジェクトでひとまとめに……する？
 
 //アイドル選択は one-and-only Object
@@ -394,21 +393,22 @@ function init_objChoice(_dom, _aIdols){
 		objChoice.needsChoice = _answers;
 		for( const c of objChoice.checkboxes ){ c.checked = false; }
 		objChoice.choicedIdolIndices = [];
-		HSEquiz.textContent = `答えは ${_answers} 人`;
-		if(_answers>1){
-			//特殊指定。
-			HSEquiz.style.backgroundColor = "black";
-			HSEquiz.style.color = "white";
-			HSEquiz.style.fontWeight = "bold";
-			HBEplay.classList.add("strong");
-		}else{
-			//特殊指定の解除
-			HSEquiz.style.backgroundColor = "";
-			HSEquiz.style.color = "";
-			HSEquiz.style.fontWeight = "";
-			HBEplay.classList.remove("strong");
+
+		const spnq = document.querySelector("span#span-quiz");
+		const spna = document.querySelector("span#span-answer");
+		const btnp = document.querySelector("button#button-play")
+		if(spnq && spna && btnp){
+			spnq.textContent = `答えは ${_answers} 人`;
+
+			if(_answers>1){
+				spnq.classList.add("strong");
+				btnp.classList.add("strong");
+			}else{
+				spnq.classList.remove("strong");
+				btnp.classList.remove("strong");
+			}
+			spna.textContent = "";
 		}
-		HSEanswer.textContent = "";
 	};
 	//[関数]イベント捕捉
 	objChoice.handleEvent = (ev)=>{
@@ -427,8 +427,11 @@ function init_objChoice(_dom, _aIdols){
 					objChoice.choicedIdolIndices.splice(i,1);
 				}
 			}
-			HSEanswer.textContent = idx2name(...objChoice.choicedIdolIndices); //選択情報更新
-			HSEanswer.className = objChoice.choicedIdolIndices.length ? ("imascgss "+arIdolDatas[objChoice.choicedIdolIndices[0]].type) : "";
+			const spna = document.querySelector("span#span-answer");
+			if(spna){
+				spna.textContent = idx2name(...objChoice.choicedIdolIndices); //選択情報更新
+				spna.className = objChoice.choicedIdolIndices.length ? ("imascgss "+arIdolDatas[objChoice.choicedIdolIndices[0]].type) : "";
+			}
 		} //ev.type="change"
 	};
 };
@@ -471,19 +474,17 @@ function setupQuizScreen(){
 
 	init_objChoice(clone, arIdolDatas); //アイドル選択。
 
+
 	//再生ボタン。
-	HBEplay = clone.querySelector("button#HBEplay");
-	if(HBEplay instanceof HTMLButtonElement){
-		HBEplay.addEventListener("click",playQuizSound)
+	const btnp = clone.querySelector("button#button-play");
+	if(btnp instanceof HTMLButtonElement){
+		btnp.addEventListener("click",playQuizSound)
 	}
 	//回答ボタン。
-	HBEanswer = clone.querySelector("button#HBEanswer");
-	if(HBEanswer instanceof HTMLButtonElement){
-		HBEanswer.addEventListener("click",judgeAnswer)
+	const btna = clone.querySelector("button#button-answer");
+	if(btna instanceof HTMLButtonElement){
+		btna.addEventListener("click",judgeAnswer)
 	}
-	//情報表示用span
-	HSEquiz = clone.querySelector("span#HSEquiz");
-	HSEanswer = clone.querySelector("span#HSEanswer");
 
 	//objChoice.container
 
@@ -496,7 +497,7 @@ function setupQuizScreen(){
 
 //出題(準備)する
 function makeQuiz(){
-	const elm = document.querySelector("span#HSEresult");
+	const elm = document.querySelector("span#span-result");
 	if(elm){
 		elm.textContent = `第 ${++countQuiz} 問 / 正 ${countCorrect}-${countWrong} 誤${
 			countStreak<2 ? "" : (" !! "+countStreak+" COMBO")
@@ -512,8 +513,10 @@ function makeQuiz(){
 	//解答欄準備
 	objChoice.ready(indicesQuiz.length);
 	//ボタンを使用可能にする
-	HBEplay.disabled = false;
-	HBEanswer.disabled = true;
+	const btnp = document.querySelector("button#button-play");
+	if(btnp instanceof HTMLButtonElement){ btnp.disabled = false }
+	const btna = document.querySelector("button#button-answer");
+	if(btna instanceof HTMLButtonElement){ btna.disabled = true }
 }
 
 //Promise版setTimeout(遅延時間[ms])
@@ -538,15 +541,21 @@ function playQuizSound(){
 	}
 
 	//ボタンを使用不能にする
-	HBEplay.disabled = true;
-	promiseSetTimeout( Math.max(...dur)*1e3 ).then( ()=>{
-		HBEanswer.disabled = false;
-	}); //再生終了時間を待ってから
+	const btnp = document.querySelector("button#button-play");
+	if(btnp instanceof HTMLButtonElement){
+		btnp.disabled = true;
+		promiseSetTimeout( Math.max(...dur)*1e3 ).then( ()=>{
+			const btna = document.querySelector("button#button-answer");
+			if(btna instanceof HTMLButtonElement){ btna.disabled = false }
+		}); //再生終了時間を待ってから
+	}
 }
 
 //正誤判定
 function judgeAnswer(){
-	HBEanswer.disabled = true;
+	const btna = document.querySelector("button#button-answer");
+	if(btna instanceof HTMLButtonElement){ btna.disabled = true }
+
 	const bJudge = ((_x,_y)=>{
 		if(_x.length !== _y.length) return false;
 		for( let oy of _y ){ if( _x.indexOf(oy) < 0 ){ return false; } }
