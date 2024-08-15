@@ -24,16 +24,16 @@ input[type="checkbox"]:not(checked)+img{opacity:.3}
 /*その他、実験用*/
 #div-log{color:silver}
 #div-input{border:1px dashed green;margin:.3em;padding:.2em}
-#div-output{border:1px dotted cyan;margin:.3em;padding:.2em}
+#div-output{background-color: paleturquoise;margin:.3em;padding:.2em}
 
 span.strong{background-color:black;color:white;font-weight:bold}
 
 </style></head><body>
 
 <template id="screen-top">
-	<h1>デレステタイトルコール遊び場</h1><!-- document.titleに反映する -->
-	<div id="div-log"></div>
+	<h1>デレステタイトルコール遊び場</h1>
 	<div id="div-output"></div>
+	<div id="div-log"></div>
 	<div id="div-input">
 		<button id="gotoQuiz" class="imascgss" disabled>クイズ</button>
 		<button id="gotoListen" class="imascgss" disabled>試聴室</button>
@@ -47,8 +47,14 @@ span.strong{background-color:black;color:white;font-weight:bold}
 <template id="screen-quiz">
 	<h1>デレステタイトルコール当てクイズ</h1>
 	<div id="div-output">
-		<span id="span-result"></span><br>
-		<span id="span-quiz"></span><br>
+		<div><!--first row-->
+			Q. <output id="out-countQuiz">0</output>
+			/ ✅️ <output id="out-countCorrect">0</output>-<output id="out-countWrong">0</output> 🆖
+			<output id="out-countStreak" class="imascgss fancyscore"></output>
+		</div>
+		<div><!--second row-->
+			<span id="span-quiz"></span>
+		</div>
 		<button class="imascgss" id="button-play">
 			<span class="hide-disabled">Play</span>
 			<span class="show-disabled">&gt;&gt;&gt;&gt;</span>
@@ -74,202 +80,207 @@ span.strong{background-color:black;color:white;font-weight:bold}
 <script>
 "use strict";
 
-const hostStarlightDB = "https://starlight.kirara.ca/";
-const pathCharList = "/api/v1/list/card_t?keys=chara_id"; //※char_tが500を返すのでcard_tで代用
-const pathCharDetail = "/api/v1/char_t/";
-//URLインターフェースを利用して引数を安全にURL化(さもなくば例外を投げる)
-const urlFirstRequest = new URL(pathCharList,hostStarlightDB);
-const urlVirtualRequest = new URL( pathCharDetail, hostStarlightDB );
-
-//コンプレッサー作成とAudioContextへ接続
-const gAudioCtx = new AudioContext();
-const gAudioCompNode = (c=>{
-	let n = c.createDynamicsCompressor();
-	n.connect(c.destination);
-	return n;
-})(gAudioCtx);
-
-let arIdolDatas = [];
-let arIdolLoaders = [];
-
-class tIdol {
-	//クラス用定数
-	static get pNmIMGicon(){ return "IMGicon"; }
-	static get pNmADtitleS(){ return "ADtitleS"; } //タイトルコール/ソロ用
-	static get pNmADtitleU(){ return "ADtitleU"; } //タイトルコール/ユニット用
-	static get pNmADnameD(){ return "ADnameD"; }   //名前＋です
-	static get pNmADnameX(){ return "ADnameX"; }   //名前(体言止め)
-
-	//**コンストラクタ**
-	constructor( _argobj ){
-		//同一名称プロパティをコピーしまくりんぐ
-		const copyProprts = a=>{ for(const n of a){ this[n] = _argobj[n]; } };
-		copyProprts( [
-			"cid","name","type","voice", this.constructor.pNmIMGicon,
-			this.constructor.pNmADtitleS, this.constructor.pNmADtitleU, this.constructor.pNmADnameD, this.constructor.pNmADnameX
-		] );
-		this[ this.constructor.pNmIMGicon ].alt = `${this.name} (cv. ${this.voice})`;
+class Idol{
+	//AudioContextとコンプレッサーはstatic&private領域に確保することにした
+	static #audCtx = new AudioContext();
+	static #audComp = Idol.#audCtx.createDynamicsCompressor();
+	static{
+		Idol.#audComp.connect( Idol.#audCtx.destination )
 	}
+	static resumeAudioContext(){ return Idol.#audCtx.resume() }
 
-	//プロパティ名を指定して音声再生
-	playAudio(
-		_pName = this.constructor.pNmADtitleS,
-		_dest = gAudioCtx.destination,
-		_timing = gAudioCtx.currentTime
-	){
-		let bfsrc = gAudioCtx.createBufferSource();
-		bfsrc.buffer = this[_pName];
-		bfsrc.connect(_dest);
-		bfsrc.start(_timing);
-		return true;
+	#cid=-1; //chara_id
+	#nam=""; //name
+	#typ=""; //type
+	#cv="";  //voice
+	#iir=""; //image_icon_ref
+	#be=false; //.isReady
+	#aubTitS=null; //AudioBuffer:Titlecall:Solo
+	#aubTitU=null; //AudioBuffer:Titlecall:Unit
+	#aubNamD=null; //AudioBuffer:Name:withDesu
+	#aubNamX=null; //AudioBuffer:Name:withoutDesu
+	#urlIco="";   //URL of Icon(cache)
+
+	constructor(charaId,name,type,voice,hrefIcon){
+		this.#cid = parseInt(charaId);
+		this.#nam = name;
+		this.#typ = type;
+		this.#cv = voice;
+		this.#iir = hrefIcon;
 	}
+	get charaId(){ return this.#cid }
+	get name(){ return this.#nam }
+	get type(){ return this.#typ }
+	get voice(){ return this.#cv }
+	get isReady(){ return this.#be }
+	get urlIcon(){ return this.#urlIco } //回答欄にアイコンを付けるといいかもと思って改変した
 
-	//プロパティ名を指定して音声長[秒]を取得
-	getDurationOf(_pName){
-		const tgtpnm = "duration";
-		return ( _pName in this && tgtpnm in this[_pName] )? this[_pName][tgtpnm] : 0;
-	}
-}
+	async crawl(){
+		if(this.#be){return this}
 
-class tIdolLoader {
+		//アイドル情報のvoiceが空文字列ではない＝タイトルコールがある「かもしれない」。
+		//例えば2017年の「恋が咲く季節」イベントの時(だと思われる)、この曲を歌うアイドルのCV 5名分 が反映されたものの、
+		//タイトルコール実装はカード報酬となった2名にとどまっている。
+		//タイトルコールが存在するかは個人情報JSONに現れないので直接音声ファイルのURLを叩いてみる。
+		const id2vo = c => `/va2/${ (this.#cid ^ 0x1042fc).toString(16) }10442${c}16ab.mp3`;
+		//本家ソースちら見した限り、音声は画像と同じサーバにあるらしい。
+		const hrefTitS = new URL( id2vo("c"), this.#iir ).href; //タイトルコール/ソロ用
+		const hrefTitU = new URL( id2vo("d"), this.#iir ).href; //タイトルコール/ユニット用
+		const hrefNamD = new URL( id2vo("2"), this.#iir ).href; //名前＋です
+		const hrefNamX = new URL( id2vo("1"), this.#iir ).href; //名前(体言止め)
 
-	//**コンストラクタ**
-	constructor( _argobj ){
-		//必要な情報を抜き取る(含・tIdol生成時にのみ必要なもの)
-		this.cid = _argobj["chara_id"]; //ID
-		this.name = _argobj["name"];    //名前
-		this.type = _argobj["type"];    //属性
-		this.voice = _argobj["voice"];  //担当声優
-		//アイコン画像のURLは絶対参照に変換して保存
-		this.urlIcon = new URL( _argobj["icon_image_ref"], urlVirtualRequest ).href;
-	}
-
-	//非同期読み込み開始
-	async asyncLoad( _fnFinally ){
 		// ++非同期関数++ URLから音声データにする
-		const asyncGetAudioData = async ( _href )=>{
+		const asyGetAudioData = async (href)=>{
 			let aud;
-			try {
-				const abf = await cachey.requestOrFetch(_href);
-				aud = await gAudioCtx.decodeAudioData(abf);
-			} catch (e) {
+			try{
+				const abf = await cachey.requestOrFetch(href);
+				aud = await Idol.#audCtx.decodeAudioData(abf);
+			}catch(e){
+				console.warn(e);
 				aud = null;
 			}
 			return aud;
 		};
-		// ++非同期関数++
-		const promiseGetImage = ( _href )=>{
-			return new Promise( (resolve,reject)=>{
-				let hie = document.createElement("img");
-				hie.onload = ()=>{ resolve(hie); };
-				hie.onerror = (e)=>{ reject(e); };
-				hie.src = _href;
-			} );
-		};
-		// ++非同期関数++ URLを与えてIMGタグにする
-		const asyncGetImageElement = async ( _href )=>{
-			let hie;
-			try {
-				const blb = await cachey.requestOrFetch(_href);
-				hie = await promiseGetImage( URL.createObjectURL( blb ) );
-			} catch (e) {
-				hie = null;
+		// ++非同期関数++ URLから画像データを指すオブジェクトURLを得る
+		const asyGetBlobImage = async ()=>{
+			let ou;
+			try{
+				const blb = await cachey.requestOrFetch(this.#iir);
+				ou = URL.createObjectURL( blb )
+			}catch(e){
+				console.warn(e);
+				ou = null;
 			}
-			return hie;
+			return ou;
 		};
 
-		//アイドル個人の情報のvoiceが空文字列ではない＝タイトルコールがある「かもしれない」。
-		//例えば2017年の「恋が咲く季節」イベントの時(だと思われる)、この曲を歌うアイドルのCV 5名分 が反映されたものの、
-		//タイトルコール実装はカード報酬となった2名にとどまっている。
-		//タイトルコールが存在するかは個人情報JSONに現れないので直接音声ファイルのURLを叩いてみる。
-		const id2vo = c => `/va2/${ (this.cid ^ 0x1042fc).toString(16) }10442${c}16ab.mp3`;
-		//本家ソースちら見した限り、音声は画像と同じサーバにあるらしい。
-		const urlTitleS = new URL( id2vo("c"), this.urlIcon ).href; //タイトルコール/ソロ用
-		const urlTitleU = new URL( id2vo("d"), this.urlIcon ).href; //タイトルコール/ユニット用
-		const urlNameD = new URL( id2vo("2"), this.urlIcon ).href;  //名前＋です
-		const urlNameX = new URL( id2vo("1"), this.urlIcon ).href;  //名前(体言止め)
-
-		try {
-			this[tIdol.pNmADtitleS] = await asyncGetAudioData(urlTitleS);
-			if( ! this[tIdol.pNmADtitleS] ){ throw "if there is HTTP:404 then never mind."; }
-			//引き続き、残る要素を読み込む。並列処理テクを使う。
-			//1. await抜きでasync関数を呼び出すことでPromiseを生成(実行開始)。
-			const prmIcon = asyncGetImageElement(this.urlIcon);
-			const prmTitleU = asyncGetAudioData(urlTitleU);
-			const prmNameD = asyncGetAudioData(urlNameD);
-			const prmNameX = asyncGetAudioData(urlNameX);
-			//2. そのPromiseインスタンスをawaitする。Promise群の中で一番遅いものの時間で処理できる。
-			this[tIdol.pNmIMGicon] = await prmIcon;
-			this[tIdol.pNmADtitleU] = await prmTitleU;
-			this[tIdol.pNmADnameD] = await prmNameD;
-			this[tIdol.pNmADnameX] = await prmNameX;
-		} catch (e) {
-			//読み込めなかったらこのブロックに来てからfinallyブロックへ
-			//404以外に、CDN由来の52x,530エラーがある。
-			//対応的には、4xx:再挑戦不可 52[02457]:自動再挑戦可能 52[136]|530:今は諦める(手動再挑戦)
+		try{
+			[
+				this.#aubTitS, this.#aubTitU,
+				this.#aubNamD, this.#aubNamX, this.#urlIco
+			] = await Promise.all([
+				asyGetAudioData(hrefTitS), asyGetAudioData(hrefTitU),
+				asyGetAudioData(hrefNamD), asyGetAudioData(hrefNamX), asyGetBlobImage()
+			])
+			this.#be = true;
+		}catch(e){
 			console.warn(e);
-			console.warn(`cause of [${this.cid}] ${this.name} (cv. ${this.voice})`);
-		} finally {
-			_fnFinally( this );
+			console.warn(`cause of [${this.#cid}] ${this.#nam} (cv. ${this.#cv})`);
+		}
+		return this;
+	}
+	//crawl()が成功裏に終われば this.isReady == true で喋れる
+	async #play(buffer){
+		if(!(buffer instanceof AudioBuffer)){ throw new TypeError("arg must be AudioBuffer") }
+		let pfResolve;
+		const prmReturn = new Promise((rslv,_)=>{pfResolve=rslv}); //resolve関数を当スコープに持ち出したPromise
+		const sn = Idol.#audCtx.createBufferSource();
+		sn.buffer = buffer;
+		sn.connect( Idol.#audComp );
+		sn.addEventListener("ended",()=>{pfResolve()})
+		sn.start( Idol.#audCtx.currentTime );
+		return prmReturn;
+	}
+	playTitleCall(isSolo){
+		if(this.isReady){
+			return this.#play(isSolo ? this.#aubTitS : this.#aubTitU)
+		}else{
+			return Promise.reject( new Error(`Idol ${this.name}=#${this.charaId} is not ready`) )
 		}
 	}
-
-	//class tIdol のインスタンスを取り出す。さもなくば return null
-	standIdol(){
-		return (
-			this[tIdol.pNmIMGicon] && this[tIdol.pNmADtitleS] && this[tIdol.pNmADtitleU] && this[tIdol.pNmADnameD] && this[tIdol.pNmADnameX]
-		)? new tIdol(this) : null;
+	playMyName(beWithDesu){
+		if(this.isReady){
+			return this.#play(beWithDesu ? this.#aubNamD : this.#aubNamX)
+		}else{
+			return Promise.reject( new Error(`Idol ${this.name}=#${this.charaId} is not ready`) )
+		}
 	}
 }
 
-// ++非同期関数++ リソースの読み出し
-async function asyncFetchResources() {
+function queryPutText(query, text){
+	const e = document.querySelector(`${query}`);
+	if(e){ e.textContent = `${text}` }
+}
 
-	// ++非同期関数++ 問い合わせてレスポンスのJSONをオブジェクトに変換して返す。
-	const asyncFetchAndStrip = async ( url ) => {
-		const resReq = await fetch( url.href );
-		return (await resReq.json())["result"];
-	};
+class TIdoldex{
+	static #atype = ["cute","cool","passion"]; //属性の配列
 
-	let prmInitIDB = cachey.asyncInit(); //cacheyの初期化Promise
-
-	let arrslt = await asyncFetchAndStrip(urlFirstRequest);
-	//最初の結果を利用して次に呼び出すURLを構築
-	let setCharId = new Set();
-	arrslt.forEach( o=>{setCharId.add(o["chara_id"])} );
-	let strCharIds = Array.from(setCharId).join();
-	let secondRequestURL = new URL(pathCharDetail+strCharIds, urlFirstRequest);
-	arrslt = await asyncFetchAndStrip(secondRequestURL);
-	await prmInitIDB; //cacheyの初期化完了もここで待つ
-	//console.log( `cachey:${cachey.dbOpened?"READY":("ERROR/"+cachey.strDbErr)}` );
-
-	for( let objrslt of arrslt ){
-		if( ! objrslt["voice"] ) continue;
-		//専用のローダーに返答オブジェクトを渡せば良いようにしてあります
-		let idldr = new tIdolLoader(objrslt);
-		arIdolLoaders.push( idldr );
-		idldr.asyncLoad( cbIdolLoader );
+	#aidol;
+	constructor(){
+		this.#aidol=[new Idol]; this.#aidol.pop(); //こうすることでVSCodeでヒントが出るようになる
 	}
-	console.log(`(asyncFetchResources) 全 ${arrslt.length} 人、CV設定あり ${arIdolLoaders.length} 人`);
-}
+	get numberIdol(){ return this.#aidol.length }
+	static get listType(){ return [...TIdoldex.#atype] }
 
-//callback of tIdolLoaer
-function cbIdolLoader( _objILr ){
+	async initWithSLDB(){
+		//SLDB API endpoints : https://starlight.kirara.ca/static/api.html
+		const hrefTopPage = "https://starlight.kirara.ca/"
+		const rurlListChar = "/api/v1/list/char_t?keys=chara_id";
+		const rurlInfoChar = "/api/v1/char_t/";
 
-	//インスタンスを取り出せれば配列に登録。
-	let objIdol = _objILr.standIdol();
-	if( objIdol instanceof tIdol ){ arIdolDatas.push( objIdol ); }
+		// ++非同期関数++ 問い合わせてレスポンスのJSONをオブジェクトに変換して返す。
+		const asyncFetchAndStrip = async (sUrl)=>{
+			const url = new URL(sUrl,hrefTopPage);
+			const ans = (await fetch( url.href ).then(r=>r.json()))["result"];
+			if(ans instanceof Array){
+				return ans;
+			}else{
+				throw new Error(`${url.href} did not return valid result.`)
+			}
+		}
 
-	//処理が終わったので、配列から取り除く
-	const idxILs = arIdolLoaders.indexOf( _objILr );
-	if( idxILs < 0 ) throw new Error("cbIdolLoader() / unknown tIdolLoader object found");
-	arIdolLoaders.splice( idxILs, 1 );
+		const outputting = (txt)=>{queryPutText("#div-output",txt)}
+		const loging = (txt)=>{queryPutText("#div-log",txt)}
 
-	//状態更新(反映)処理を呼ぶ
-	//console.log(`(cbIdolLoader) 結果=${!!objIdol} 成功x${arIdolDatas.length} 残件x${arIdolLoaders.length}`);
-	progressFetch();
-	if( arIdolLoaders.length == 0 ){ afterFetch(); }
-}
+		outputting(`⌛リソース取得開始${window.indexedDB ? "" : " !! NO-INDEXED-DATABASE"}`)
+
+		let prmInitIDB = cachey.asyncInit(); //cacheyの初期化Promiseを先行させておく
+		let ar1 = await asyncFetchAndStrip( rurlListChar );
+		let sr1 = new Set( ar1.map(o=>o["chara_id"]) );
+
+		loging(`(Idoldex.initWithSLDB) 全 ${sr1.size} 人`);
+
+		let ar2 = await asyncFetchAndStrip( rurlInfoChar + Array.from(sr1).join() )
+		ar2 = ar2.filter( o=>o["voice"] );
+		await prmInitIDB; //cacheyの初期化完了もここで待つ
+
+		loging(`(Idoldex.initWithSLDB) voice名前あり ${ar2.length} 人`);
+
+		let numGood = 0, numBad = 0;
+		//jsonをIdolに変換＆crawl()＆個別の後処理済み配列
+		let psri = await Promise.allSettled(ar2.map(o=>{
+			const idol = new Idol(o["chara_id"], o["name"], o["type"], o["voice"],new URL(o["icon_image_ref"],hrefTopPage).href);
+			return idol.crawl().then(anidol=>{
+				if(anidol.isReady){numGood++}else{numBad++}
+				outputting(`⌛リソース取得中... ${ 100 * (numGood+numBad) / ar2.length |0 }%`)
+				loging(`loading (o${numGood} + x${numBad} = ${numGood+numBad})/${ar2.length}`)
+				return anidol;
+			});
+		}));
+
+		//大丈夫だった配列をprivate領域に引き取る、そしてデレステ上のデフォルト並び順に
+		psri.map(r=>(r.status=="fulfilled"? r.value : null)).forEach(a=>{
+			if(a && a.isReady){ this.#aidol.push(a) }
+		});
+		this.#aidol.sort( (fore,back)=>{
+			let diffType = TIdoldex.#atype.indexOf(fore.type) - TIdoldex.#atype.indexOf(back.type);
+			return diffType!==0 ? diffType : fore.charaId - back.charaId;
+		} );
+		outputting(`✅️リソース取得完了。タイトルコール実装済みアイドルは ${this.numberIdol} 人です。`)
+		loging(`(Idoldex.initWithSLDB) 音声データあり ${numGood} 人`)
+		return;
+	}
+
+	//charaId -> Idol / 見つからなければ undefined
+	getIdolWithId(charaid){
+		return this.#aidol.find( v=>(v.charaId==parseInt(charaid)) )
+	}
+	//全員
+	getIdolsAll(){ return [...this.#aidol] }
+	//タイプ別
+	getIdolsOfType(strType){ return this.#aidol.filter( v=>(v.type==strType) ) }
+};
+const Idoldex = new TIdoldex;
 
 //<template id="引数">のクローンを得る
 function getCloneOfTemplateById(id){
@@ -287,155 +298,73 @@ function getCloneOfTemplateById(id){
 }
 
 //リソース読み出し前処理
-function preFetch(){
+function setupScreenTop(){
 	const clone = getCloneOfTemplateById("screen-top")
 
-	let h = clone.querySelector("h1");
-	document.title = h?.textContent ?? document.title;
-	let d = clone.querySelector("#div-log");
-	if(d){
-		d.textContent = `⌛リソース取得開始${window.indexedDB ? "" : " !! NO-INDEXED-DATABASE"}`;
-	}
+	//let h = clone.querySelector("h1");
+	//document.title = h?.textContent ?? document.title;
 
 	document.body.appendChild(clone);
 }
 
-//リソース読み出し中処理
-function progressFetch(){
-	let d = document.querySelector("#div-log");
-	if(d){
-		d.textContent = `⌛リソース取得中... ${ 100 * arIdolDatas.length / (arIdolDatas.length+arIdolLoaders.length) |0 }%`;
-	}
-}
-
-//リソース読み出し後処理
-function afterFetch(){
-	//CuCoPa順＞ID順・昇順に整列。リソース読み出し完了は順不同になるため。
-	arIdolDatas.sort( (fore,back)=>{
-		const typeIndex = ["cute","cool","passion"];
-		let diffType = typeIndex.indexOf(fore.type) - typeIndex.indexOf(back.type);
-		return diffType!==0 ? diffType : fore.cid - back.cid;
-	});
-	let d = document.querySelector("#div-log");
-	if(d){
-		d.textContent = `✅️リソース取得完了。タイトルコール実装済みアイドルは ${arIdolDatas.length} 人です。`;
-	}
-	//全スクリーン共通の配置準備
-	setupTitleScreen();
-}
-
 //ページ読み込み時処理
 window.addEventListener("load", ()=>{
-	preFetch();
-	asyncFetchResources();
+	setupScreenTop();
+	Idoldex.initWithSLDB().then(()=>{
+		setupScreenTop2();
+	})
 });
 
 //^^^^^^^^ ここまで準備 ^^^^^^^^
 //vvvvvvvv ここから本題 vvvvvvvv
 
 //クイズに使う値
-let indicesQuiz;
-let countQuiz;
-let countCorrect;
-let countWrong;
-let countStreak;
+let idsQuiz=[];
+let countQuiz=0;
+let countCorrect=0;
+let countWrong=0;
+let countStreak=0;
 //TODO:オブジェクトでひとまとめに……する？
 
 //アイドル選択は one-and-only Object
-let objChoice = {};
-function init_objChoice(_dom, _aIdols){
-	if(!( _dom instanceof DocumentFragment && _aIdols instanceof Array )){
-		throw "init_objChoice() : bad args"
-	}
-	
-	//初期化処理
-	let d = _dom.querySelector("div#idol-choice")
-	if(!d){ throw new Error("div#idol-choice is not found.") }
-	d.addEventListener("change",objChoice);
+const objChoice = {
+	needsChoice: 1, //必要選択数(出題ごとに変わりうる)
+	choicedIdolIndices: [0],
 
-	const tem = document.querySelector("template#icon-idol")
-	if(!(tem instanceof HTMLTemplateElement)){
-		throw new Error("template#icon-idol is not found.")
-	}
-
-	let g = [];
-	for( let i=0 ; i<_aIdols.length ; ++i ){
-		const cln = tem.content.cloneNode(true);
-		if(!(cln instanceof DocumentFragment)){
-			throw new Error("cloning made wrong")
-		}
-		let l = cln.querySelector("label");
-		let c = cln.querySelector("input");
-		if(c){
-			c.value = i
-			g.push(c);
-		}
-		const e = _aIdols[i][tIdol.pNmIMGicon];
-		if(e instanceof HTMLImageElement){
-			e.width = e.height = 50; //IMGの大きさを50[px]に、直接変更
-			if(l){
-				l.lastElementChild.remove();
-				l.appendChild(e);
-			}
-		}
-		d.appendChild(cln);
-	}
-	//変数＆関数登録
-	objChoice.aIdols = _aIdols; //参照元tIdol配列
-	objChoice.container = d;    //グリッドコンテナ
-	objChoice.checkboxes = g;   //チェックボックス配列
-	objChoice.needsChoice = 1;  //必要選択数(出題ごとに変わる可能性がある)
-	objChoice.choicedIdolIndices = [];
 	//[関数]解答欄準備
-	objChoice.ready = (_answers)=>{
-		objChoice.needsChoice = _answers;
-		for( const c of objChoice.checkboxes ){ c.checked = false; }
-		objChoice.choicedIdolIndices = [];
-
-		const spnq = document.querySelector("span#span-quiz");
-		const spna = document.querySelector("span#span-answer");
-		const btnp = document.querySelector("button#button-play")
-		if(spnq && spna && btnp){
-			spnq.textContent = `答えは ${_answers} 人`;
-
-			if(_answers>1){
-				spnq.classList.add("strong");
-				btnp.classList.add("strong");
-			}else{
-				spnq.classList.remove("strong");
-				btnp.classList.remove("strong");
-			}
-			spna.textContent = "";
-		}
-	};
+	ready: ()=>{
+		objChoice.needsChoice = idsQuiz.length;
+		objChoice.choicedIdolIndices.length = 0;
+	},
 	//[関数]イベント捕捉
-	objChoice.handleEvent = (ev)=>{
+	handleEvent: (ev)=>{
 		if(ev.type === "change"){
-			//choicedIdolIndicesの更新
+			//choicedIdolIndicesの更新 (choicedIdolIndices <=neq=> charaId)
 			if(ev.target.checked){
 				objChoice.choicedIdolIndices.push( parseInt(ev.target.value,10) );
 				//余分にcheckされたら古いものをuncheck
 				while( objChoice.choicedIdolIndices.length > objChoice.needsChoice ){
-					let x = objChoice.choicedIdolIndices.shift();
-					objChoice.checkboxes[x].checked = false;
+					let x=objChoice.choicedIdolIndices.shift();
+					let y=[...document.querySelectorAll("#idol-choice input")].find( elm=>(elm.value==x) );
+					if(y instanceof HTMLInputElement){ y.checked = false }
 				}
 			}else{
 				let i = objChoice.choicedIdolIndices.indexOf( parseInt(ev.target.value,10) );
 				if( i >= 0 ){
-					objChoice.choicedIdolIndices.splice(i,1);
+					objChoice.choicedIdolIndices.splice(i,1); //i番目を抜き出す
 				}
 			}
-			const spna = document.querySelector("span#span-answer");
+			const spna = document.querySelector("#span-answer");
 			if(spna){
-				spna.textContent = idx2name(...objChoice.choicedIdolIndices); //選択情報更新
-				spna.className = objChoice.choicedIdolIndices.length ? ("imascgss "+arIdolDatas[objChoice.choicedIdolIndices[0]].type) : "";
+				spna.textContent = cids2name(...objChoice.choicedIdolIndices); //選択情報更新
+				const cid0 = objChoice.choicedIdolIndices[0];
+				spna.className = cid0 ? `imascgss ${Idoldex.getIdolWithId(cid0)?.type ?? ""}` : "";
 			}
 		} //ev.type="change"
-	};
+	},
 };
 //使い方。
-//解答欄のHTMLElementTreeは objChoice.container にある
-//問題準備ができたら objChoice.ready( 正解の配列.length ) で解答欄リセット
+//問題準備ができたら objChoice.ready() で値をリセット
 //選ばれた数は objChoice.choicedIdolIndices.length
 //正誤判定は objChoice.choicedIdolIndices と正解の配列の内容物をcompare
 
@@ -449,19 +378,21 @@ function clearDivIO(){
 }
 
 //タイトル画面構成
-function setupTitleScreen(){
-	const d = document.querySelector("#div-output");
-	if(d){
-		d.textContent = "モード選択(予定地)";
-	}
+function setupScreenTop2(){
 	const b = document.querySelector("#gotoQuiz");
 	if(b instanceof HTMLButtonElement){
 		b.addEventListener("click", ()=>{
 			//Chrome 66 以降、ページ読み込み時に生成されるAudioContextの初期が"suspend"に(＝いきなり音が鳴りださなくなる)
 			//その対応として入力イベント処理中にaudctx.resume().then(action)。こっちの方が行儀がいい。
-			gAudioCtx.resume().then( setupQuizScreen )
+			//そのresume関数(非同期)を呼ぶ関数が準備してあるので呼んであげる
+			Idol.resumeAudioContext().then( ()=>{setupQuizScreen()} )
 		});
 		b.disabled = false;
+	}
+	const p = document.querySelector("#gotoListen");
+	if(p instanceof HTMLButtonElement){
+		//試聴室へのボタン予定地
+		//p.disabled = false;
 	}
 }
 
@@ -470,95 +401,122 @@ function setupQuizScreen(){
 	//以降の画面で使われるHTMLElement群の初期化
 	const clone = getCloneOfTemplateById("screen-quiz")
 
-	init_objChoice(clone, arIdolDatas); //アイドル選択。
+	//選択部の初期化処理
+	let divic = clone.querySelector("#idol-choice")
+	if(!divic){ throw new Error("#idol-choice is not found.") }
+	divic.addEventListener("change",objChoice);
 
+	const temicon = document.querySelector("template#icon-idol")
+	if(!(temicon instanceof HTMLTemplateElement)){
+		throw new Error("template#icon-idol is not found.")
+	}
+	for(const girl of Idoldex.getIdolsAll() ){
+		const cln = temicon.content.cloneNode(true);
+		if(!(cln instanceof DocumentFragment)){
+			throw new Error("cloning made wrong")
+		}
+		let chk = cln.querySelector("input");
+		if(chk){
+			chk.value = girl.charaId;
+		}
+		let img = cln.querySelector("img");
+		if(img){
+			img.src = girl.urlIcon;
+			img.alt = `${girl.name} (cv. ${girl.voice})`;
+		}
+		divic.appendChild(cln);
+	}
 
 	//再生ボタン。
-	const btnp = clone.querySelector("button#button-play");
+	const btnp = clone.querySelector("#button-play");
 	if(btnp instanceof HTMLButtonElement){
 		btnp.addEventListener("click",playQuizSound)
 	}
 	//回答ボタン。
-	const btna = clone.querySelector("button#button-answer");
+	const btna = clone.querySelector("#button-answer");
 	if(btna instanceof HTMLButtonElement){
 		btna.addEventListener("click",judgeAnswer)
 	}
 
-	//objChoice.container
-
 	clearDivIO();
 	document.body.appendChild(clone);
-
-	countQuiz = countCorrect = countWrong = countStreak = 0;
 	makeQuiz();
 }
 
 //出題(準備)する
 function makeQuiz(){
-	const elm = document.querySelector("span#span-result");
-	if(elm){
-		elm.textContent = `第 ${++countQuiz} 問 / 正 ${countCorrect}-${countWrong} 誤${
-			countStreak<2 ? "" : (" !! "+countStreak+" COMBO")
-		}`;
+
+	queryPutText("#out-countQuiz",   ++countQuiz)
+	queryPutText("#out-countCorrect",countCorrect)
+	queryPutText("#out-countWrong",  countWrong)
+	queryPutText("#out-countStreak", countStreak<2 ? "" : `!! ${countStreak} COMBO` )
+
+	let cntq = countStreak>=10 ? 2 : 1; //10問以上連続正解すると2人同時に(experimental)
+	let lsid = Idoldex.getIdolsAll().map(girl=>girl.charaId);
+	idsQuiz.length = 0;
+	while(idsQuiz.length < cntq){
+		idsQuiz.push( ...lsid.splice( parseInt(Math.random()*lsid.length), 1 ) )
 	}
-	// ○-×日本式, ✓-✗米国式
-	indicesQuiz = ( (_arr,_cnt)=>{
-		let r = [], k = [..._arr.keys()]; //キーすなわち添え字のイテレータ　をスプレッド演算子で全展開
-		while( r.length < _cnt ){ r.push( ...k.splice( (Math.random()*k.length)|0, 1 ) ); }
-		return r;
-	} )(arIdolDatas, (countStreak>=10)?2:1 ); //10問以上連続正解すると2人同時に(experimental)
 
 	//解答欄準備
-	objChoice.ready(indicesQuiz.length);
-	//ボタンを使用可能にする
-	const btnp = document.querySelector("button#button-play");
+	objChoice.ready();
+
+	const idolChoiceInputs = [...document.querySelectorAll("#idol-choice input")];
+	for( const c of idolChoiceInputs ){ c.checked = false; }
+
+	const spnq = document.querySelector("#span-quiz");
+	const spna = document.querySelector("#span-answer");
+	const btnp = document.querySelector("#button-play");
+	const btna = document.querySelector("#button-answer");
+
+	if(spnq && spna && btnp){
+		spnq.textContent = `答えは ${idsQuiz.length} 人`;
+		if(idsQuiz.length>1){
+			spnq.classList.add("strong");
+			btnp.classList.add("strong");
+		}else{
+			spnq.classList.remove("strong");
+			btnp.classList.remove("strong");
+		}
+		spna.textContent = "";
+	}
+	//ボタンを再生可能、回答不可能にする
 	if(btnp instanceof HTMLButtonElement){ btnp.disabled = false }
-	const btna = document.querySelector("button#button-answer");
 	if(btna instanceof HTMLButtonElement){ btna.disabled = true }
 }
 
-//Promise版setTimeout(遅延時間[ms])
-function promiseSetTimeout(_delay){
-	return new Promise( (resolve,reject)=>{setTimeout(resolve,_delay);} );
-}
-
 //名前に変換
-function idx2name(..._a){
-	return _a.map( v=>arIdolDatas[v].name ).join("、");
+function cids2name(...ids){
+	return ids.map( v=>Idoldex.getIdolWithId(v).name ).join("、");
 }
 
 //音声再生
 function playQuizSound(){
-	//まとめて、同時に再生
-	let tim = gAudioCtx.currentTime;
-	let pnm = indicesQuiz.length === 1 ? tIdol.pNmADtitleS : tIdol.pNmADtitleU;
-	let dur = []; //音声の長さを取っておく
-	for(let i of indicesQuiz){
-		arIdolDatas[i].playAudio( pnm, gAudioCompNode, tim );
-		dur.push( arIdolDatas[i].getDurationOf(pnm) );
-	}
+	const tellers = idsQuiz.map( v=>Idoldex.getIdolWithId(v) ).filter( v=>(v instanceof Idol) )
 
 	//ボタンを使用不能にする
-	const btnp = document.querySelector("button#button-play");
+	const btnp = document.querySelector("#button-play");
 	if(btnp instanceof HTMLButtonElement){
 		btnp.disabled = true;
-		promiseSetTimeout( Math.max(...dur)*1e3 ).then( ()=>{
-			const btna = document.querySelector("button#button-answer");
+
+		//まとめて・同時に再生。再生終了を待ってから回答可能に
+		Promise.allSettled( tellers.map(v=>v.playTitleCall(tellers.length==1)) ).then( ()=>{
+			const btna = document.querySelector("#button-answer");
 			if(btna instanceof HTMLButtonElement){ btna.disabled = false }
-		}); //再生終了時間を待ってから
+		});
 	}
 }
 
 //正誤判定
 function judgeAnswer(){
-	const btna = document.querySelector("button#button-answer");
+	const btna = document.querySelector("#button-answer");
 	if(btna instanceof HTMLButtonElement){ btna.disabled = true }
 
 	const bJudge = ((_x,_y)=>{
-		if(_x.length !== _y.length) return false;
+		if(_x.length !== _y.length){ return false }
 		for( let oy of _y ){ if( _x.indexOf(oy) < 0 ){ return false; } }
 		return true; //つまり、長さが同じで一方の全要素が他方にも含まれていれば真
-	})(indicesQuiz, objChoice.choicedIdolIndices);
+	})(idsQuiz, objChoice.choicedIdolIndices);
 
 	if(bJudge){
 		++countCorrect;
@@ -572,20 +530,19 @@ function judgeAnswer(){
 	console.log(
 		countQuiz+(bJudge
 			?"[O] "
-			:`[X] ${idx2name(...objChoice.choicedIdolIndices)} ではなくて `
-		)+idx2name(...indicesQuiz)
+			:`[X] ${cids2name(...objChoice.choicedIdolIndices)} ではなくて `
+		)+cids2name(...idsQuiz)
 	);
 
-	//正解は誰だったかがわかるように。
-	let tim = gAudioCtx.currentTime;
-	let totaldur = 0;
-	for( let i=0 ; i<indicesQuiz.length; ++i ){
-		let o = indicesQuiz[i];
-		let p = (i+1 === indicesQuiz.length)? tIdol.pNmADnameD : tIdol.pNmADnameX; //最後のメンバのみ「～です」つき版にする
-		arIdolDatas[o].playAudio(p,gAudioCompNode,tim+totaldur);
-		totaldur+=arIdolDatas[o].getDurationOf(p);
+	//正解を音声で通知
+	let tellers = idsQuiz.map( v=>Idoldex.getIdolWithId(v) ).filter( v=>(v instanceof Idol) )
+	let pchain = Promise.resolve();
+	while( tellers.length > 0 ){
+		const t0 = tellers.shift();
+		const bFin = tellers.length==0;
+		pchain = pchain.then( ()=>t0?.playMyName(bFin) );
 	}
-	promiseSetTimeout( totaldur*1e3 ).then( makeQuiz );
+	pchain.then( ()=>{makeQuiz()} );
 }
 
 </script>
